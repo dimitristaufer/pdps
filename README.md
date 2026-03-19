@@ -1,24 +1,49 @@
 # PDPS Workshop Site
 
-Static site for the Privacy, Data Protection & Surveillance Workshop series.
+Static site built with Zola and a structured block editor.
 
-## Local development
+## Local preview
 
 1. Install Zola.
-2. Run `zola serve` from the site root.
-3. Open the local preview URL printed by Zola.
+2. Run `zola serve` (auto reload).
 
-## Updating workshop data
+No auto reload:
+- `./build-static.sh`
+- `./serve-static.sh`
 
-Edit `data/workshops.toml` to add new editions. Each entry contains the edition, date, location, and program PDF path. Program PDFs live in `static/programs/` and should use the `YYYY-MM-DD-xx-program.pdf` naming convention.
+## Editing content (recommended)
 
-## Content structure
+1. Open `/editor/` in a Chromium browser.
+2. Click **Open site folder** and select `PDPS_Zola_Site`.
+3. Pick a file and edit in Builder.
+4. Save (validation runs; Safe save writes backups to `data/_drafts/`).
 
-- `content/_index.md`: Home page content.
-- `content/program.md`: Latest program information.
-- `content/archive/_index.md`: Full archive timeline.
-- `content/policies/`: Privacy, accessibility, and code of conduct.
+Notes:
+- Builder works only for `.md` pages.
+- `.toml` files are text‑only.
+- Page body must be empty; content lives in `extra.blocks`.
+- Builder blocks reject raw HTML.
+
+## Content model (blocks)
+
+Front matter uses `extra.blocks = [ ... ]`.
+Block types: `section_heading`, `paragraph`, `markdown`, `callout`, `card_grid`, `timeline`, `people_grid`, `schedule`, `button_row`, `map_embed`, `two_column`.
+`two_column` supports `left_title`, `left_body`, `left_buttons`, `right_title`, `right_body`, `right_buttons`.
+
+## Where things live
+
+- Pages: `content/*.md`
+- Editions timeline: `data/workshops.toml`
+- Organizers: `data/organizers_current.toml`, `data/organizers_former.toml`
+- Schedule: `data/program_*.toml`
+- Maps: `data/locations.toml`
+- PDFs: `static/programs/`
+- Site config, nav, hero, footer: `zola.toml`
 
 ## Deployment
 
-GitHub Pages deployment is configured in `.github/workflows/gh-pages.yml`. The workflow builds the site with Zola and deploys the `public/` directory.
+GitHub Pages is deployed via Actions. Use one workflow:
+- `/.github/workflows/gh-pages.yml` (Actions Pages)
+- or `/.github/workflows/deploy.yml` (gh-pages branch)
+
+Set `base_url` in `zola.toml` to your Pages URL.
