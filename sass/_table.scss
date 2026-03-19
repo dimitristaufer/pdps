@@ -1,0 +1,46 @@
+table {
+    width: 100%;
+    margin-bottom: 1.5rem;
+    vertical-align: top;
+    border-color: var(--color-border);
+    text-align: left;
+    border-collapse: collapse;
+    background: var(--color-surface);
+    border-radius: 1rem;
+    overflow: hidden;
+}
+
+table > thead {
+    vertical-align: bottom;
+    background: color-mix(in srgb, var(--color-primary), var(--color-surface) 92%);
+}
+
+table > tbody {
+    vertical-align: inherit;
+}
+
+tbody, td, tfoot, th, thead, tr {
+    border-color: inherit;
+    border-style: solid;
+    border-width: 0;
+}
+
+table > :not(caption) > * > * {
+    padding: 0.7rem 0.8rem;
+    border-bottom-width: 1px;
+}
+
+table th {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-muted);
+}
+
+table > tbody > tr:hover > * {
+    background-color: color-mix(in srgb, var(--color-primary), var(--color-surface) 95%);
+}
+
+.table-compact table > :not(caption) > * > * {
+    padding: 0.45rem 0.6rem;
+}

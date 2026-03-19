@@ -1,0 +1,51 @@
+{% import "macros/seo.html" as seo %}
+
+{% if page is defined %}
+    {% set this = page %}
+{% elif section is defined %}
+    {% set this = section %}
+{% else %}
+    {% set this = config %}
+{% endif %}
+{% set page_class = this.slug | default(value = "home") %}
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+
+        <link rel="stylesheet" href="{{ get_url(path = 'main.css') | safe }}">
+
+        {% set icon = get_image_metadata(path = 'apple-touch-icon.png', allow_missing = true) %}
+        {% if icon %}
+        <link rel="shortcut icon" type="image/x-icon" href="{{ get_url(path = 'favicon.ico') }}">
+        <link rel="apple-touch-icon" href="{{ get_url(path = 'apple-touch-icon.png') }}" type="image/png">
+        {% endif %}
+
+        <title>{% if this.title %}{{ this.title }} · {{ config.title }}{% else %}{{ config.title }}{% endif %}</title>
+
+        {{ seo::seo(page = this) }}
+
+        {% block head_includes %}{% endblock head_includes %}
+        {% if this.extra.head_includes %}{{ this.extra.head_includes | safe }}{% endif %}
+    </head>
+
+    <body class="page-{{ page_class }}">
+        <a class="skip-link" href="#content">Skip to content</a>
+        {% include "partials/nav.html" %}
+        {% block header %}{% endblock header %}
+        {% block main %}{% endblock main %}
+        {% include "partials/footer.html" %}
+        <script>
+            (() => {
+                const host = window.location.hostname;
+                if (host === 'localhost' || host === '127.0.0.1') {
+                    document.querySelectorAll('.nav-link--editor').forEach((link) => {
+                        link.classList.add('is-local');
+                    });
+                }
+            })();
+        </script>
+    </body>
+</html>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>http://127.0.0.1:1111/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/2026-1/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/archive/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/contact/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/editor/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/participate/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/people/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/policies/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/policies/accessibility/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/policies/privacy/</loc>
+    </url>
+    <url>
+        <loc>http://127.0.0.1:1111/venue/</loc>
+    </url>
+</urlset>

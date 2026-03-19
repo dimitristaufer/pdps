@@ -1,0 +1,104 @@
+title = "20th Interdisciplinary Workshop"
+date = "16 December 2025"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2025-12-16-xx-program.pdf"
+
+[[blocks]]
+title = "Conceptual and practical gaps in law"
+  [[blocks.sessions]]
+  time = "12:00"
+  title = "Welcome and introduction round"
+  type = "info"
+
+  [[blocks.sessions]]
+  time = "12:10"
+  title = "Neural data: a new challenge for data protection?"
+  speaker = "Nora Hertz"
+  affiliation = "Albert-Ludwigs University Freiburg / Kammergericht Berlin"
+
+  [[blocks.sessions]]
+  time = "13:00"
+  title = "Assembly freedom and state surveillance as gaps in law"
+  speaker = "Clemens Arzt"
+  affiliation = "HWR / FOEPS Berlin"
+
+  [[blocks.sessions]]
+  time = "13:50"
+  title = "Short break"
+  type = "break"
+
+  [[blocks.sessions]]
+  time = "14:00"
+  title = "Digital sovereignty as a constitutional mandate"
+  speaker = "Charlotte Werther"
+  affiliation = "Open Search Foundation e.V."
+
+  [[blocks.sessions]]
+  time = "14:50"
+  title = "Coffee break"
+  type = "break"
+
+[[blocks]]
+title = "Assessing and mitigating risks"
+  [[blocks.sessions]]
+  time = "15:10"
+  title = "Measuring Risk to Rights: A Reliability Study"
+  speaker = "Cesar Augusto Fontanillo Lopez"
+  affiliation = "KU Leuven"
+
+  [[blocks.sessions]]
+  time = "16:00"
+  title = "ISO work on Privacy by Design: methodology under construction"
+  speaker = "Jan Schallaboeck"
+  affiliation = "iRights.Law"
+
+  [[blocks.sessions]]
+  time = "16:50"
+  title = "Short break"
+  type = "break"
+
+  [[blocks.sessions]]
+  time = "17:00"
+  title = "Trusted Execution Environments for transparent, verifiable, data-minimised news platforms"
+  speaker = "Jonas Gebele"
+  affiliation = "Technical University of Munich"
+
+  [[blocks.sessions]]
+  time = "17:50"
+  title = "Conclusion and outlook"
+  type = "info"
+
+  [[blocks.sessions]]
+  time = "18:00"
+  title = "End and reception"
+  type = "info"
+
+[[speakers]]
+name = "Nora Hertz"
+affiliation = "Albert-Ludwigs University Freiburg"
+image = "placeholder.svg"
+
+[[speakers]]
+name = "Clemens Arzt"
+affiliation = "HWR / FOEPS Berlin"
+image = "placeholder.svg"
+
+[[speakers]]
+name = "Charlotte Werther"
+affiliation = "Open Search Foundation"
+image = "placeholder.svg"
+
+[[speakers]]
+name = "Cesar Augusto Fontanillo Lopez"
+affiliation = "KU Leuven"
+image = "placeholder.svg"
+
+[[speakers]]
+name = "Jan Schallaboeck"
+affiliation = "iRights.Law"
+image = "placeholder.svg"
+
+[[speakers]]
+name = "Jonas Gebele"
+affiliation = "Technical University of Munich"
+image = "placeholder.svg"

@@ -1,0 +1,30 @@
+{% set input = load_data(path = data) %}
+{% if list is defined %}
+    {% set people = input[list] %}
+{% else %}
+    {% set people = input.people | default(value = input) %}
+{% endif %}
+{% set columns_class = "" %}
+{% if columns %}
+    {% if columns == 4 %}
+        {% set columns_class = " people-grid--four" %}
+    {% endif %}
+{% endif %}
+<div class="people-grid{{ columns_class }}">
+    {% for person in people %}
+        <div class="person-card">
+            {% set image_path = person.image | default(value = "placeholder.svg") %}
+            <img class="avatar" src="{{ get_url(path = image_path) | safe }}" alt="{{ person.name }}">
+            {% if person.url %}
+                <h3><a href="{{ person.url | safe }}" target="_blank" rel="noopener">{{ person.name }}</a></h3>
+            {% else %}
+                <h3>{{ person.name }}</h3>
+            {% endif %}
+            {% if person.role %}
+                <p>{{ person.role }}</p>
+            {% elif person.affiliation %}
+                <p>{{ person.affiliation }}</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>

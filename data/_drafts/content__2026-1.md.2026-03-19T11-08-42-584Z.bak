@@ -1,0 +1,28 @@
++++
+title = '2026 Edition'
+description = 'TBA.'
+extra.blocks = [
+	{ type = 'callout', text = '**Important notice:** TBA.' },
+	{ type = 'card_grid', variant = 'wide', items = [
+		{ title = 'Date', body = 'Early July 2026 (exact date to be confirmed)' },
+		{ title = 'Venue', body = 'Weizenbaum Institute, Berlin' },
+		{ title = 'Format', body = 'In-person with hybrid participation details shared in the final programme.' },
+		{ title = 'Special Topic', body = 'Call for submissions and deadlines will be posted here. Reviews run via OpenReview, with accepted papers planned for CEUR-WS proceedings.' },
+	] },
+	{ type = 'markdown', body = "## Important dates (TBA)\n- Call for submissions opens: TBA\n- Submission deadline: TBA\n- Notifications: TBA\n- Workshop date: Early July 2026" },
+	{ type = 'button_row', items = [
+		{ label = 'Participation guide', href = '/participate/' },
+	] },
+	{ type = 'map_embed', data = 'data/locations.toml' },
+	{ type = 'section_heading', text = 'Most recent workshop: 20th Interdisciplinary Workshop (16 December 2025)' },
+	{ type = 'markdown', body = "Below is the most recent complete programme.\n\n**Location:** Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin" },
+	{ type = 'button_row', items = [
+		{ label = 'Programme PDF', href = '/programs/2025-12-16-xx-program.pdf', new_tab = true, size = 'small' },
+	] },
+	{ type = 'section_heading', text = 'Schedule overview' },
+	{ type = 'schedule', data = 'data/program_2025.toml' },
+	{ type = 'section_heading', text = 'Speakers' },
+	{ type = 'people_grid', data = 'data/program_2025.toml', list = 'speakers', columns = 4.0 },
+]
++++
+

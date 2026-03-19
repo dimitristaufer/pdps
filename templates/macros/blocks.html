@@ -1,0 +1,313 @@
+{% import "macros/ordinal.html" as ordinal %}
+
+{% macro render_blocks(blocks, content) %}
+{% set blocks = blocks | default(value = []) %}
+{% if blocks | length == 0 %}
+    <div class="section section--light">
+        <section class="container content">
+            {{ content | safe }}
+        </section>
+    </div>
+{% else %}
+    {% set_global section_index = 0 %}
+    {% set_global open_section = false %}
+    {% for block in blocks %}
+        {% set block_type = block.type | default(value = "") %}
+        {% if block_type == "section_heading" %}
+            {% if open_section %}
+                </section>
+            </div>
+            {% endif %}
+            {% set_global section_index = section_index + 1 %}
+            {% set_global open_section = true %}
+            {% set section_class = "section--light" %}
+            {% if section_index is even %}
+                {% set section_class = "section--alt" %}
+            {% endif %}
+            <div class="section {{ section_class }}">
+                <section class="container content">
+                    {% if block.eyebrow %}
+                        <p class="eyebrow">{{ block.eyebrow }}</p>
+                    {% endif %}
+                    {% set level = block.level | default(value = 2) %}
+                    {% if level == 1 or level == "1" %}
+                        <h1>{{ block.text }}</h1>
+                    {% elif level == 3 or level == "3" %}
+                        <h3>{{ block.text }}</h3>
+                    {% elif level == 4 or level == "4" %}
+                        <h4>{{ block.text }}</h4>
+                    {% else %}
+                        <h2>{{ block.text }}</h2>
+                    {% endif %}
+                    {% if block.lead %}
+                        <p class="lead">{{ block.lead }}</p>
+                    {% endif %}
+        {% else %}
+            {% if not open_section %}
+                {% set_global section_index = section_index + 1 %}
+                {% set_global open_section = true %}
+                {% set section_class = "section--light" %}
+                {% if section_index is even %}
+                    {% set section_class = "section--alt" %}
+                {% endif %}
+                <div class="section {{ section_class }}">
+                    <section class="container content">
+            {% endif %}
+            {{ blocks::render_block(block = block) }}
+        {% endif %}
+    {% endfor %}
+    {% if open_section %}
+        </section>
+    </div>
+    {% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro render_block(block) %}
+{% set block_type = block.type | default(value = "") %}
+{% if block_type == "markdown" %}
+    {{ block.body | default(value = "") | markdown | safe }}
+{% elif block_type == "paragraph" %}
+    <p>{{ block.text | default(value = "") }}</p>
+{% elif block_type == "callout" %}
+    <div class="callout">
+        {{ block.text | default(value = "") | markdown | safe }}
+    </div>
+{% elif block_type == "card_grid" %}
+    {% set variant = block.variant | default(value = "") %}
+    <div class="card-grid{% if variant == "wide" %} card-grid--wide{% endif %}">
+        {% for item in block.items | default(value = []) %}
+            <div class="card">
+                <h3>{{ item.title }}</h3>
+                {{ item.body | default(value = "") | markdown | safe }}
+            </div>
+        {% endfor %}
+    </div>
+{% elif block_type == "timeline" %}
+    {% set data = load_data(path = "data/workshops.toml") %}
+    {% set items = data.workshops | sort(attribute = "date_iso") | reverse %}
+    {% set max = block.limit | default(value = 0) %}
+    {% set hide_upcoming = block.exclude_upcoming | default(value = false) %}
+    {% set_global count = 0 %}
+    <div class="timeline">
+        {% for item in items %}
+            {% set is_upcoming = item.status | default(value = "") == "upcoming" %}
+            {% if not hide_upcoming or not is_upcoming %}
+                {% if max == 0 or count < max %}
+                    <article class="timeline-card">
+                        <div class="timeline-meta">
+                            <span class="pill">{{ ordinal::format(n = item.number) }}</span>
+                            <span class="timeline-date">{{ item.date }}</span>
+                            <span class="timeline-format">{{ item.format }}</span>
+                        </div>
+                        <h3>{{ ordinal::format(n = item.number) }} Interdisciplinary Workshop</h3>
+                        <p class="timeline-location">{{ item.location }}</p>
+                        {% if item.notes %}
+                            <p class="timeline-location">{{ item.notes }}</p>
+                        {% endif %}
+                        {% if item.tracks %}
+                            <ul class="timeline-tracks">
+                                {% for track in item.tracks %}
+                                    <li>{{ track }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                        {% if item.talks_data %}
+                            {% set talk_data = load_data(path = item.talks_data) %}
+                            {% set talks = talk_data.titles | default(value = []) %}
+                        {% elif item.program_data %}
+                            {% set program = load_data(path = item.program_data) %}
+                            {% set_global talks = [] %}
+                            {% for block in program.blocks %}
+                                {% for session in block.sessions %}
+                                    {% if session.type is defined and (session.type == "break" or session.type == "info") %}
+                                    {% else %}
+                                        {% set_global talks = talks | concat(with = [session.title]) %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                        {% else %}
+                            {% set talks = [] %}
+                        {% endif %}
+                        {% if talks | length > 0 %}
+                            <p class="timeline-talks-label">Talk titles</p>
+                            <div class="talk-grid">
+                                {% for talk in talks | slice(end = 6) %}
+                                    <span class="talk-tile">{{ talk }}</span>
+                                {% endfor %}
+                                {% if talks | length > 6 %}
+                                    <span class="talk-tile talk-tile--more">+{{ talks | length - 6 }} more</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        <div class="timeline-actions">
+                            {% if item.program_pdf %}
+                                <a class="btn btn--small" href="{{ get_url(path = item.program_pdf) | safe }}" target="_blank" rel="noopener">Programme PDF</a>
+                            {% endif %}
+                            {% if item.external_url %}
+                                <a class="btn btn--ghost btn--small" href="{{ item.external_url | safe }}">Event page</a>
+                            {% endif %}
+                        </div>
+                    </article>
+                    {% set_global count = count + 1 %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+    </div>
+{% elif block_type == "people_grid" %}
+    {% set input = load_data(path = block.data) %}
+    {% if block.list is defined %}
+        {% set people = input[block.list] %}
+    {% else %}
+        {% set people = input.people | default(value = input) %}
+    {% endif %}
+    {% set columns_class = "" %}
+    {% if block.columns %}
+        {% if block.columns == 4 %}
+            {% set columns_class = " people-grid--four" %}
+        {% endif %}
+    {% endif %}
+    <div class="people-grid{{ columns_class }}">
+        {% for person in people %}
+            <div class="person-card">
+                {% set image_path = person.image | default(value = "placeholder.svg") %}
+                <img class="avatar" src="{{ get_url(path = image_path) | safe }}" alt="{{ person.name }}">
+                {% if person.url %}
+                    <h3><a href="{{ person.url | safe }}" target="_blank" rel="noopener">{{ person.name }}</a></h3>
+                {% else %}
+                    <h3>{{ person.name }}</h3>
+                {% endif %}
+                {% if person.role %}
+                    <p>{{ person.role }}</p>
+                {% elif person.affiliation %}
+                    <p>{{ person.affiliation }}</p>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+{% elif block_type == "schedule" %}
+    {% set input = load_data(path = block.data) %}
+    {% set blocks = input.blocks | default(value = []) %}
+    <div class="schedule">
+        <table>
+            <tbody>
+                {% for block in blocks %}
+                    <tr class="schedule-block">
+                        <td colspan="2">{{ block.title }}</td>
+                    </tr>
+                    {% for session in block.sessions %}
+                        <tr class="schedule-row{% if session.type %} schedule-{{ session.type }}{% endif %}">
+                            <td class="schedule-time">{{ session.time }}</td>
+                            <td class="schedule-details">
+                                <span class="schedule-title">{{ session.title }}</span>
+                                {% if session.speaker %}
+                                    <span class="schedule-speaker">{{ session.speaker }}{% if session.affiliation %} · {{ session.affiliation }}{% endif %}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% elif block_type == "button_row" %}
+    <div class="button-row">
+        {% for item in block.items | default(value = []) %}
+            {% set style = item.style | default(value = "primary") %}
+            {% set size = item.size | default(value = "normal") %}
+            {% set class = "btn" %}
+            {% if style == "ghost" %}
+                {% set class = class ~ " btn--ghost" %}
+            {% endif %}
+            {% if size == "small" %}
+                {% set class = class ~ " btn--small" %}
+            {% endif %}
+            {% if item.href is starting_with("http") %}
+                <a class="{{ class }}" href="{{ item.href | safe }}"{% if item.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ item.label }}</a>
+            {% else %}
+                <a class="{{ class }}" href="{{ get_url(path = item.href) | safe }}"{% if item.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ item.label }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+{% elif block_type == "two_column" %}
+    <div class="two-column">
+        <div class="two-column__col">
+            {% if block.left_title %}
+                <h3>{{ block.left_title }}</h3>
+            {% endif %}
+            {{ block.left_body | default(value = "") | markdown | safe }}
+            {% if block.left_buttons %}
+                <div class="button-row">
+                    {% for item in block.left_buttons | default(value = []) %}
+                        {% set style = item.style | default(value = "primary") %}
+                        {% set size = item.size | default(value = "normal") %}
+                        {% set class = "btn" %}
+                        {% if style == "ghost" %}
+                            {% set class = class ~ " btn--ghost" %}
+                        {% endif %}
+                        {% if size == "small" %}
+                            {% set class = class ~ " btn--small" %}
+                        {% endif %}
+                        {% if item.href is starting_with("http") %}
+                            <a class="{{ class }}" href="{{ item.href | safe }}"{% if item.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ item.label }}</a>
+                        {% else %}
+                            <a class="{{ class }}" href="{{ get_url(path = item.href) | safe }}"{% if item.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ item.label }}</a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+        <div class="two-column__col">
+            {% if block.right_title %}
+                <h3>{{ block.right_title }}</h3>
+            {% endif %}
+            {{ block.right_body | default(value = "") | markdown | safe }}
+            {% if block.right_buttons %}
+                <div class="button-row">
+                    {% for item in block.right_buttons | default(value = []) %}
+                        {% set style = item.style | default(value = "primary") %}
+                        {% set size = item.size | default(value = "normal") %}
+                        {% set class = "btn" %}
+                        {% if style == "ghost" %}
+                            {% set class = class ~ " btn--ghost" %}
+                        {% endif %}
+                        {% if size == "small" %}
+                            {% set class = class ~ " btn--small" %}
+                        {% endif %}
+                        {% if item.href is starting_with("http") %}
+                            <a class="{{ class }}" href="{{ item.href | safe }}"{% if item.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ item.label }}</a>
+                        {% else %}
+                            <a class="{{ class }}" href="{{ get_url(path = item.href) | safe }}"{% if item.new_tab %} target="_blank" rel="noopener"{% endif %}>{{ item.label }}</a>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% elif block_type == "map_embed" %}
+    {% set embed = block.embed_url | default(value = "") %}
+    {% set link = block.link_url | default(value = "") %}
+    {% set label = block.title | default(value = "Map") %}
+    {% if block.data %}
+        {% set location_key = block.location | default(value = "primary") %}
+        {% set input = load_data(path = block.data) %}
+        {% if input[location_key] is defined %}
+            {% set place = input[location_key] %}
+            {% set embed = place.map_embed | default(value = embed) %}
+            {% set link = place.map_link | default(value = link) %}
+            {% set label = place.name | default(value = label) %}
+        {% endif %}
+    {% endif %}
+    <div class="map-embed{% if block.variant %} map-embed--{{ block.variant }}{% endif %}">
+        <iframe
+            title="{{ label }}"
+            src="{{ embed | safe }}"
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade">
+        </iframe>
+        {% if link %}
+            <a class="map-link" href="{{ link | safe }}" target="_blank" rel="noopener">Open in OpenStreetMap</a>
+        {% endif %}
+    </div>
+{% endif %}
+{% endmacro %}

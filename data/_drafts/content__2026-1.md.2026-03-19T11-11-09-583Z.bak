@@ -1,0 +1,21 @@
++++
+title = '2026 Edition'
+description = 'TBA.'
+extra.blocks = [
+	{ type = 'callout', text = '**Important notice:** TBA.' },
+	{ type = 'card_grid', variant = 'wide', items = [
+		{ title = 'Date', body = 'Early July 2026 (TBA)' },
+		{ title = 'Venue', body = 'Weizenbaum Institute, Berlin' },
+		{ title = 'Format', body = 'In-person with hybrid participation.' },
+		{ title = 'Special Theme', body = 'TBA' },
+	] },
+	{ type = 'section_heading', text = 'Programme', lead = "(last year's programme)" },
+	{ type = 'button_row', items = [
+		{ label = 'Programme PDF', href = '/programs/2025-12-16-xx-program.pdf', new_tab = true, size = 'small' },
+	] },
+	{ type = 'schedule', data = 'data/program_2025.toml' },
+	{ type = 'section_heading', text = 'Speakers' },
+	{ type = 'people_grid', data = 'data/program_2025.toml', list = 'speakers', columns = 4.0 },
+]
++++
+

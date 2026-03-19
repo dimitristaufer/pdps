@@ -1,0 +1,21 @@
++++
+title = 'Participate'
+description = 'How to propose a talk or attend a PDPS edition.'
+extra.blocks = [
+	{ type = 'section_heading', text = 'Who should participate' },
+	{ type = 'paragraph', text = 'PDPS welcomes submissions from researchers, practitioners, and policy experts working on privacy, data protection, surveillance, and related governance issues. Early-stage work and interdisciplinary perspectives are encouraged.' },
+	{ type = 'section_heading', text = 'Propose a talk' },
+	{ type = 'markdown', body = "Send a short abstract that explains your question, method, and the discussion you want to have with the audience. Include your preferred format and any accessibility needs.\n\n**What to include:**\n\n- Title and author list\n- Short abstract describing your question and method\n- Discussion focus or feedback you are seeking\n- Accessibility or hybrid participation needs (optional)" },
+	{ type = 'section_heading', text = 'Call for submissions' },
+	{ type = 'paragraph', text = 'Each edition publishes a call for submissions with scope, deadlines, and the OpenReview submission link. We welcome research talks, work-in-progress ideas, and practice-facing case studies.' },
+	{ type = 'section_heading', text = 'Submission & review (OpenReview)' },
+	{ type = 'paragraph', text = 'Submissions and reviews are managed in OpenReview. The call for submissions will include the venue link and required fields.' },
+	{ type = 'section_heading', text = 'Proceedings (CEUR-WS)' },
+	{ type = 'paragraph', text = 'Accepted papers are planned for an open-access CEUR-WS proceedings volume. CEUR-WS publishes new volumes under CC BY 4.0, and camera-ready papers will use the CEURART template (LaTeX/Overleaf) shared in the final call.' },
+	{ type = 'section_heading', text = 'Important dates (TBA)' },
+	{ type = 'markdown', body = "- Call for submissions opens: TBA\n- Submission deadline: TBA\n- Notifications: TBA\n- Camera-ready: TBA" },
+	{ type = 'section_heading', text = 'Registration' },
+	{ type = 'paragraph', text = 'TBA' },
+]
++++
+

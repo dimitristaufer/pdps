@@ -1,0 +1,13 @@
++++
+title = "Privacy Policy"
+description = "How this website handles data and what to expect when attending the workshop."
+
+extra.blocks = [
+  { type = "section_heading", text = "Website data" },
+  { type = "paragraph", text = "This website is a static site hosted on GitHub Pages. It does not use cookies, analytics scripts, or third-party trackers. Standard server logs may record anonymised access information for security and operational purposes." },
+  { type = "section_heading", text = "Workshop registration data" },
+  { type = "paragraph", text = "Registration information is collected only when an edition requires it. Any registration form will provide its own privacy notice describing what data is collected, for what purpose, and how long it is retained." },
+  { type = "section_heading", text = "Contact" },
+  { type = "paragraph", text = "Questions about data handling can be directed to the organising team listed in the latest edition page." }
+]
++++

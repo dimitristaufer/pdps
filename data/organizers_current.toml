@@ -1,0 +1,17 @@
+[[people]]
+name = "Vasilis Ververis"
+role = "Hasso Plattner Institute"
+url = "https://orcid.org/0000-0002-7681-1147"
+image = "placeholder.svg"
+
+[[people]]
+name = "Dimitri Staufer"
+role = "TU Berlin"
+url = "https://www.tu.berlin/en/ias/about/team"
+image = "placeholder.svg"
+
+[[people]]
+name = "David Hartmann"
+role = "Weizenbaum Institute"
+url = "https://www.weizenbaum-institut.de/en/portrait/p/david-hartmann/"
+image = "placeholder.svg"

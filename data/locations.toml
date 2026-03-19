@@ -1,0 +1,16 @@
+[primary]
+name = "Weizenbaum Institute"
+city = "Berlin"
+address = "Hardenbergstrasse 32, 10623 Berlin"
+map_embed = "https://www.openstreetmap.org/export/embed.html?bbox=13.3220%2C52.5050%2C13.3366%2C52.5114&layer=mapnik&marker=52.5082%2C13.3293"
+map_link = "https://www.openstreetmap.org/?mlat=52.5082&mlon=13.3293#map=16/52.5082/13.3293"
+
+[[alternates]]
+name = "Hasso Plattner Institute (HPI)"
+city = "Potsdam"
+address = "Prof.-Dr.-Helmert-Str. 2-3, 14482 Potsdam"
+
+[[alternates]]
+name = "Alexander von Humboldt Institute for Internet and Society"
+city = "Berlin"
+address = "Franzosische Strasse 9, 10117 Berlin"

@@ -1,0 +1,33 @@
+base_url = "https://example.com"
+title = "Privacy, Data Protection & Surveillance Workshop"
+description = "An interdisciplinary workshop series on privacy, data protection, and surveillance bringing together research, policy, and practice."
+
+compile_sass = true
+build_search_index = false
+generate_feeds = false
+minify_html = true
+
+[markdown]
+render_emoji = false
+
+[markdown.highlighting]
+enable = false
+theme = "catppuccin-mocha"
+
+[extra]
+site_short = "PDPS Workshop"
+
+hero = { tagline = "Interdisciplinary Workshop Series", title = "Privacy, Data Protection & Surveillance", subtitle = "A twice-yearly forum connecting scholars, practitioners, and policymakers on privacy, data protection, and surveillance.", note = "" }
+cta_primary = { name = "2026 Edition", url = "/2026-1/" }
+cta_secondary = { name = "Browse Archive", url = "/archive/" }
+
+nav = [
+  { name = "Home", url = "/", highlight = false },
+  { name = "2026 Edition", url = "/2026-1/", highlight = true },
+  { name = "Participate", url = "/participate/" },
+  { name = "Venue", url = "/venue/" },
+  { name = "Archive", url = "/archive/" }
+]
+
+footer = { text = "Built with Zola. Content is maintained by the PDPS Workshop organizing community." }
+image = { resize = 0, ext = ".jpg" }

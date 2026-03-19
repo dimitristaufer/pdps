@@ -1,0 +1,71 @@
+{% import "macros/ordinal.html" as ordinal %}
+{% set data = load_data(path = "data/workshops.toml") %}
+{% set items = data.workshops | sort(attribute = "date_iso") | reverse %}
+{% set max = limit | default(value = 0) %}
+{% set hide_upcoming = exclude_upcoming | default(value = false) %}
+{% set_global count = 0 %}
+<div class="timeline">
+    {% for item in items %}
+        {% set is_upcoming = item.status | default(value = "") == "upcoming" %}
+        {% if not hide_upcoming or not is_upcoming %}
+            {% if max == 0 or count < max %}
+                <article class="timeline-card">
+                    <div class="timeline-meta">
+                        <span class="pill">{{ ordinal::format(n = item.number) }}</span>
+                        <span class="timeline-date">{{ item.date }}</span>
+                        <span class="timeline-format">{{ item.format }}</span>
+                    </div>
+                    <h3>{{ ordinal::format(n = item.number) }} Interdisciplinary Workshop</h3>
+                    <p class="timeline-location">{{ item.location }}</p>
+                    {% if item.notes %}
+                        <p class="timeline-location">{{ item.notes }}</p>
+                    {% endif %}
+                    {% if item.tracks %}
+                        <ul class="timeline-tracks">
+                            {% for track in item.tracks %}
+                                <li>{{ track }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                    {% if item.talks_data %}
+                        {% set talk_data = load_data(path = item.talks_data) %}
+                        {% set talks = talk_data.titles | default(value = []) %}
+                    {% elif item.program_data %}
+                        {% set program = load_data(path = item.program_data) %}
+                        {% set_global talks = [] %}
+                        {% for block in program.blocks %}
+                            {% for session in block.sessions %}
+                                {% if session.type is defined and (session.type == "break" or session.type == "info") %}
+                                {% else %}
+                                    {% set_global talks = talks | concat(with = [session.title]) %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    {% else %}
+                        {% set talks = [] %}
+                    {% endif %}
+                    {% if talks | length > 0 %}
+                        <p class="timeline-talks-label">Talk titles</p>
+                        <div class="talk-grid">
+                            {% for talk in talks | slice(end = 6) %}
+                                <span class="talk-tile">{{ talk }}</span>
+                            {% endfor %}
+                            {% if talks | length > 6 %}
+                                <span class="talk-tile talk-tile--more">+{{ talks | length - 6 }} more</span>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                    <div class="timeline-actions">
+                        {% if item.program_pdf %}
+                            <a class="btn btn--small" href="{{ get_url(path = item.program_pdf) | safe }}" target="_blank" rel="noopener">Programme PDF</a>
+                        {% endif %}
+                        {% if item.external_url %}
+                            <a class="btn btn--ghost btn--small" href="{{ item.external_url | safe }}">Event page</a>
+                        {% endif %}
+                    </div>
+                </article>
+                {% set_global count = count + 1 %}
+            {% endif %}
+        {% endif %}
+    {% endfor %}
+</div>

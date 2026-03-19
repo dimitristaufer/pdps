@@ -1,0 +1,37 @@
++++
+title = 'Home2'
+template = 'home.html'
+extra.blocks = [
+	{ type = 'section_heading', text = 'Focus areas' },
+	{ type = 'markdown', body = 'Each edition connects policy, technical, social, and methodological work. Talks are short; discussion comes first.' },
+	{ type = 'card_grid', variant = 'wide', items = [
+		{ title = 'Policy and law', body = 'Regulation, governance frameworks, enforcement, and legal design.' },
+		{ title = 'Technical systems', body = 'Privacy-by-design, accountability, and risk assessment methods.' },
+		{ title = 'Society and culture', body = 'Surveillance practices, social impacts, and lived experience.' },
+		{ title = 'Methods and evidence', body = 'Empirical studies and cross-disciplinary research tools.' },
+	] },
+	{ type = 'section_heading', text = 'Organisers' },
+	{ type = 'markdown', body = '**Current organisers**' },
+	{ type = 'people_grid', data = 'data/organizers_current.toml', columns = 4.0 },
+	{ type = 'markdown', body = '**Former organisers**' },
+	{ type = 'people_grid', data = 'data/organizers_former.toml', columns = 4.0 },
+	{ type = 'section_heading', text = 'Format & participation' },
+	{ type = 'card_grid', variant = 'wide', items = [
+		{ title = 'Format', body = 'Two thematic blocks per edition, short talks, and generous discussion time.' },
+		{ title = 'Submission & review', body = 'Calls for submissions are managed in OpenReview, with deadlines announced per edition.' },
+		{ title = 'Proceedings', body = 'Accepted papers are planned for open-access CEUR-WS proceedings using the CEURART template.' },
+		{ title = 'Venue & access', body = 'The 2026 workshop is planned in Berlin. Hybrid access details follow the final programme.' },
+	] },
+	{ type = 'button_row', items = [
+		{ label = 'Participation guide', href = '/participate/' },
+		{ label = '2026 Edition', href = '/2026-1/' },
+		{ label = 'Venue details', href = '/venue/' },
+	] },
+	{ type = 'section_heading', text = 'Archive' },
+	{ type = 'timeline', limit = 3.0, exclude_upcoming = true },
+	{ type = 'button_row', items = [
+		{ label = 'Full archive', href = '/archive/' },
+	] },
+]
++++
+

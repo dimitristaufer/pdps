@@ -1,0 +1,9 @@
++++
+title = 'Archive'
+description = 'Programmes and locations for every PDPS Workshop edition since 2015.'
+extra.blocks = [
+	{ type = 'section_heading', text = 'Past editions' },
+	{ type = 'timeline', exclude_upcoming = true },
+]
++++
+

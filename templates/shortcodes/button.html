@@ -1,0 +1,6 @@
+<div class="text-center">
+    {% set is_pdf = url is containing(".pdf") %}
+    <a class="btn mt-3" href="{{ get_url(path = url) | safe }}"{% if is_pdf %} target="_blank" rel="noopener"{% endif %}>
+        {{- name -}}
+    </a>
+</div>

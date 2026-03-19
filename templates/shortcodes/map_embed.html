@@ -1,0 +1,26 @@
+{% set embed = embed_url | default(value = "") %}
+{% set link = link_url | default(value = "") %}
+{% set label = title | default(value = "Map") %}
+
+{% if data is defined %}
+    {% set location_key = location | default(value = "primary") %}
+    {% set input = load_data(path = data) %}
+    {% if input[location_key] is defined %}
+        {% set place = input[location_key] %}
+        {% set embed = place.map_embed | default(value = embed) %}
+        {% set link = place.map_link | default(value = link) %}
+        {% set label = place.name | default(value = label) %}
+    {% endif %}
+{% endif %}
+
+<div class="map-embed{% if variant %} map-embed--{{ variant }}{% endif %}">
+    <iframe
+        title="{{ label }}"
+        src="{{ embed | safe }}"
+        loading="lazy"
+        referrerpolicy="no-referrer-when-downgrade">
+    </iframe>
+    {% if link %}
+        <a class="map-link" href="{{ link | safe }}" target="_blank" rel="noopener">Open in OpenStreetMap</a>
+    {% endif %}
+</div>

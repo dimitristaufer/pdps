@@ -1,0 +1,20 @@
++++
+title = 'Venue'
+description = 'Location details for in-person editions and guidance for hybrid participation.'
+extra.blocks = [
+	{ type = 'section_heading', text = '2026 Venue' },
+	{ type = 'card_grid', variant = 'wide', items = [
+		{ title = 'Weizenbaum Institute', body = "Hardenbergstrasse 32, 10623 Berlin\n\nRoom access details will be shared with the final programme." },
+		{ title = 'Hybrid access', body = 'When hybrid participation is enabled, access details are shared with registered participants.' },
+		{ title = 'On-site guidance', body = 'Check-in, room directions, and accessibility notes will be listed in the programme.' },
+	] },
+	{ type = 'map_embed', data = 'data/locations.toml' },
+	{ type = 'section_heading', text = 'Venues used for past editions' },
+	{ type = 'card_grid', items = [
+		{ title = 'Alexander von Humboldt Institute for Internet and Society (HIIG)', body = 'Franzosische Strasse 9, 10117 Berlin' },
+		{ title = 'Hasso Plattner Institute (HPI)', body = 'Prof.-Dr.-Helmert-Str. 2-3, 14482 Potsdam' },
+		{ title = 'IFHV', body = 'Massenbergstrasse 9B, 44787 Bochum' },
+	] },
+]
++++
+

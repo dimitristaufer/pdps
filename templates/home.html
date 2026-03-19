@@ -1,0 +1,82 @@
+{% extends "default.html" %}
+
+{% import "macros/list.html" as list %}
+{% import "macros/blocks.html" as blocks %}
+{% import "macros/ordinal.html" as ordinal %}
+
+{% block header %}
+{% set data = load_data(path = "data/workshops.toml") %}
+{% set workshop_list = data.workshops | default(value = data) %}
+{% set workshops = workshop_list | sort(attribute = "date_iso") | reverse %}
+{% set latest = workshops | first | default(value = false) %}
+{% if latest and latest.number is defined %}
+    {% set latest_label = ordinal::format(n = latest.number) %}
+{% else %}
+    {% set latest_label = "Upcoming" %}
+{% endif %}
+<section class="hero">
+    <div class="container hero-layout">
+        <div class="hero-content">
+            <p class="eyebrow">{{ config.extra.hero.tagline }}</p>
+            <h1>{{ config.extra.hero.title }}</h1>
+            <p class="hero-lead">{{ config.extra.hero.subtitle }}</p>
+            <div class="hero-actions">
+                <a class="btn" href="{{ get_url(path = config.extra.cta_primary.url) | safe }}">{{ config.extra.cta_primary.name }}</a>
+                <a class="btn btn--ghost" href="{{ get_url(path = config.extra.cta_secondary.url) | safe }}">{{ config.extra.cta_secondary.name }}</a>
+            </div>
+            {% if config.extra.hero.note %}
+                <p class="hero-note">{{ config.extra.hero.note }}</p>
+            {% endif %}
+        </div>
+        <div class="hero-aside">
+            <div class="panel-card">
+                <p class="eyebrow">Latest edition</p>
+                {% if latest %}
+                    <h2>{{ latest_label }} Interdisciplinary Workshop</h2>
+                    <div class="panel-meta-stack">
+                        <div>
+                            <span class="meta-label">When</span>
+                            <span class="meta-value">{{ latest.date }}</span>
+                        </div>
+                        <div>
+                            <span class="meta-label">Where</span>
+                            <span class="meta-value">{{ latest.location }}</span>
+                        </div>
+                    </div>
+                    <div class="panel-actions">
+                        {% if latest.program_pdf %}
+                            <a class="btn btn--small" href="{{ get_url(path = latest.program_pdf) | safe }}" target="_blank" rel="noopener">Programme PDF</a>
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <h2>Interdisciplinary Workshop</h2>
+                    <p class="panel-meta">Details coming soon</p>
+                {% endif %}
+            </div>
+            <div class="panel-stats">
+                <div>
+                    <p class="stat">{{ workshops | length }}</p>
+                    <p class="stat-label">Editions since 2015</p>
+                </div>
+                <div>
+                    <p class="stat">2</p>
+                    <p class="stat-label">Cities hosted</p>
+                </div>
+                <div>
+                    <p class="stat">Hybrid</p>
+                    <p class="stat-label">Format</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block main %}
+<main id="content" aria-label="Content">
+    {% set this = page | default(value = section) %}
+    {% set blocks_data = this.extra.blocks | default(value = []) %}
+    {% set rendered_content = list::insert_list(content = this.content) %}
+    {{ blocks::render_blocks(blocks = blocks_data, content = rendered_content) | safe }}
+</main>
+{% endblock main %}

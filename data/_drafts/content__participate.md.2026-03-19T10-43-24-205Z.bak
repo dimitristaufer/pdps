@@ -1,0 +1,16 @@
++++
+title = "Participate"
+description = "How to propose a talk or attend a PDPS edition."
+
+extra.blocks = [
+  { type = "section_heading", text = "Who should participate" },
+  { type = "paragraph", text = "PDPS welcomes submissions from researchers, practitioners, and policy experts working on privacy, data protection, surveillance, and related governance issues. Early-stage work and interdisciplinary perspectives are encouraged." },
+  { type = "two_column", left_title = "Propose a talk", left_body = "Send a short abstract that explains your question, method, and the discussion you want to have with the audience. Include your preferred format and any accessibility needs.", right_title = "Archival submission", right_body = "**Call for archival submissions**\n\nEach edition publishes a call for submissions with scope, deadlines, and the OpenReview submission link. We welcome research talks, work-in-progress ideas, and practice-facing case studies.\n\n**Submissions & review (OpenReview)**\n\nSubmissions and reviews are managed in OpenReview. The call for submissions will include the venue link and required fields.\n\n**Proceedings (CEUR-WS)**\n\nAccepted papers are planned for an open-access CEUR-WS proceedings volume. CEUR-WS publishes new volumes under CC BY 4.0, and camera-ready papers will use the CEURART template (LaTeX/Overleaf) shared in the final call.\n\n**Important dates (TBA)**\n\n- Call for submissions opens: TBA\n- Submission deadline: TBA\n- Notifications: TBA\n- Camera-ready: TBA" },
+  { type = "section_heading", text = "Registration" },
+  { type = "paragraph", text = "Registration details are announced with each new edition. When registration is required, the 2026 edition page links to the relevant form and participation instructions." },
+  { type = "button_row", items = [
+      { label = "See the latest edition", href = "/2026-1/" }
+    ]
+  }
+]
++++

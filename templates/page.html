@@ -1,0 +1,25 @@
+{% extends "default.html" %}
+
+{% import "macros/list.html" as list %}
+{% import "macros/blocks.html" as blocks %}
+
+{% block header %}
+{% set this = page | default(value = section) %}
+<section class="page-hero">
+    <div class="container">
+        <h1>{{ this.title }}</h1>
+        {% if this.description %}
+            <p class="lead">{{ this.description }}</p>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block main %}
+<main id="content" aria-label="Content">
+    {% set this = page | default(value = section) %}
+    {% set blocks_data = this.extra.blocks | default(value = []) %}
+    {% set rendered_content = list::insert_list(content = this.content) %}
+    {{ blocks::render_blocks(blocks = blocks_data, content = rendered_content) | safe }}
+</main>
+{% endblock main %}

@@ -1,0 +1,211 @@
+[[workshops]]
+edition = "I"
+number = 1
+date = "4 December 2015"
+date_iso = "2015-12-04"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Oberwallstrasse 9, 10117 Berlin"
+program_pdf = "/programs/2015-12-04-i-program.pdf"
+talks_data = "data/talks/2015-12-04-i-program.toml"
+
+[[workshops]]
+edition = "II"
+number = 2
+date = "30 June 2016"
+date_iso = "2016-06-30"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2016-06-30-ii-program.pdf"
+talks_data = "data/talks/2016-06-30-ii-program.toml"
+
+[[workshops]]
+edition = "III"
+number = 3
+date = "9 December 2016"
+date_iso = "2016-12-09"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2016-12-09-iii-program.pdf"
+talks_data = "data/talks/2016-12-09-iii-program.toml"
+
+[[workshops]]
+edition = "IV"
+number = 4
+date = "28 June 2017"
+date_iso = "2017-06-28"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2017-06-28-iv-program.pdf"
+talks_data = "data/talks/2017-06-28-iv-program.toml"
+
+[[workshops]]
+edition = "V"
+number = 5
+date = "5 December 2017"
+date_iso = "2017-12-05"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2017-12-05-v-program.pdf"
+talks_data = "data/talks/2017-12-05-v-program.toml"
+
+[[workshops]]
+edition = "VI"
+number = 6
+date = "10 April 2018"
+date_iso = "2018-04-10"
+format = "Bochum"
+location = "Institute for International Law of Peace and Armed Conflict (IFHV), Massenbergstrasse 9B, 44787 Bochum"
+external_url = "https://www.hiig.de/events/vi-interdisciplinary-workshop-privacy-data-protection-surveillance-bochum-edition/"
+
+[[workshops]]
+edition = "VII"
+number = 7
+date = "10 July 2018"
+date_iso = "2018-07-10"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2018-07-10-vii-program.pdf"
+talks_data = "data/talks/2018-07-10-vii-program.toml"
+
+[[workshops]]
+edition = "VIII"
+number = 8
+date = "11 December 2018"
+date_iso = "2018-12-11"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2018-12-11-viii-program.pdf"
+talks_data = "data/talks/2018-12-11-viii-program.toml"
+
+[[workshops]]
+edition = "IX"
+number = 9
+date = "9 April 2019"
+date_iso = "2019-04-09"
+format = "Bochum"
+location = "Institute for International Law of Peace and Armed Conflict (IFHV), Massenbergstrasse 9B, 44787 Bochum"
+program_pdf = "/programs/2019-04-09-ix-program.pdf"
+talks_data = "data/talks/2019-04-09-ix-program.toml"
+notes = "Bochum edition"
+
+[[workshops]]
+edition = "X"
+number = 10
+date = "5 July 2019"
+date_iso = "2019-07-05"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2019-07-05-x-program.pdf"
+talks_data = "data/talks/2019-07-05-x-program.toml"
+
+[[workshops]]
+edition = "XI"
+number = 11
+date = "10 December 2019"
+date_iso = "2019-12-10"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2019-12-10-xi-program.pdf"
+talks_data = "data/talks/2019-12-10-xi-program.toml"
+
+[[workshops]]
+edition = "XII"
+number = 12
+date = "14 December 2021"
+date_iso = "2021-12-14"
+format = "Online"
+location = "Online (Zoom)"
+program_pdf = "/programs/2021-12-14-xii-program.pdf"
+talks_data = "data/talks/2021-12-14-xii-program.toml"
+
+[[workshops]]
+edition = "XIII"
+number = 13
+date = "5 July 2022"
+date_iso = "2022-07-05"
+format = "Hybrid"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2022-07-05-xiii-program.pdf"
+talks_data = "data/talks/2022-07-05-xiii-program.toml"
+
+[[workshops]]
+edition = "XIV"
+number = 14
+date = "13 December 2022"
+date_iso = "2022-12-13"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2022-12-13-xiv-program.pdf"
+talks_data = "data/talks/2022-12-13-xiv-program.toml"
+
+[[workshops]]
+edition = "XV"
+number = 15
+date = "18 July 2023"
+date_iso = "2023-07-18"
+format = "Hybrid"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2023-07-18-xv-program.pdf"
+talks_data = "data/talks/2023-07-18-xv-program.toml"
+
+[[workshops]]
+edition = "XVI"
+number = 16
+date = "12 December 2023"
+date_iso = "2023-12-12"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2023-12-12-xvi-program.pdf"
+talks_data = "data/talks/2023-12-12-xvi-program.toml"
+
+[[workshops]]
+edition = "XVII"
+number = 17
+date = "23 July 2024"
+date_iso = "2024-07-23"
+format = "Berlin"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2024-07-23-xvii-program.pdf"
+talks_data = "data/talks/2024-07-23-xvii-program.toml"
+
+[[workshops]]
+edition = "XVIII"
+number = 18
+date = "10 December 2024"
+date_iso = "2024-12-10"
+format = "Hybrid"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2024-12-10-xviii-program.pdf"
+talks_data = "data/talks/2024-12-10-xviii-program.toml"
+
+[[workshops]]
+edition = "XIX"
+number = 19
+date = "22 July 2025"
+date_iso = "2025-07-22"
+format = "Hybrid"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2025-07-22-xix-program.pdf"
+talks_data = "data/talks/2025-07-22-xix-program.toml"
+
+[[workshops]]
+edition = "XX"
+number = 20
+date = "16 December 2025"
+date_iso = "2025-12-16"
+format = "Hybrid"
+location = "Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin"
+program_pdf = "/programs/2025-12-16-xx-program.pdf"
+talks_data = "data/talks/2025-12-16-xx-program.toml"
+program_data = "data/program_2025.toml"
+tracks = ["Conceptual and practical gaps in law", "Assessing and mitigating risks"]
+
+[[workshops]]
+edition = "XXI"
+number = 21
+date = "Early July 2026 (date TBA)"
+date_iso = "2026-07-05"
+format = "Berlin"
+location = "Weizenbaum Institute, Berlin"
+notes = "Planned early July edition"
+status = "upcoming"

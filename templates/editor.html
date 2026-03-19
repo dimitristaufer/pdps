@@ -1,0 +1,2366 @@
+{% extends "default.html" %}
+
+{% block head_includes %}
+<link rel="stylesheet" href="{{ get_url(path = 'vendor/codemirror/codemirror.min.css') | safe }}">
+{% endblock head_includes %}
+
+{% block main %}
+<main id="content" class="editor-shell" aria-label="Content editor">
+    <section class="container editor-header">
+        <div class="editor-actions">
+            <button class="btn" id="open-directory">Open site folder</button>
+            <button class="btn btn--ghost" id="reload-file" disabled>Reload</button>
+            <button class="btn" id="save-file" disabled>Save</button>
+        </div>
+    </section>
+
+    <section class="container editor-body">
+        <aside class="editor-sidebar">
+            <div class="editor-status" id="editor-status">
+                <span class="status-pill">No folder open</span>
+                <span class="status-hint">Choose the PDPS_Zola_Site folder to begin.</span>
+            </div>
+
+            <div class="editor-search">
+                <label for="file-search">Search files &amp; text</label>
+                <input id="file-search" type="search" placeholder="Filename or text" disabled>
+            </div>
+
+            <div class="editor-groups" id="file-groups"></div>
+        </aside>
+
+        <section class="editor-main">
+            <div class="editor-file-meta">
+                <div>
+                    <p class="editor-file-label">Current file</p>
+                    <p class="editor-file-path" id="file-path">None</p>
+                </div>
+                <div class="editor-mode" id="editor-mode">
+                    <button class="btn btn--ghost btn--small is-active" id="mode-text" type="button" aria-pressed="true">Text</button>
+                    <button class="btn btn--ghost btn--small" id="mode-builder" type="button" aria-pressed="false" disabled>Builder</button>
+                    <span class="editor-mode-hint" id="mode-hint" aria-live="polite"></span>
+                </div>
+                <div class="editor-safety">
+                    <label class="editor-safe-toggle">
+                        <input type="checkbox" id="safe-save" checked>
+                        Safe save
+                    </label>
+                    <span class="editor-safe-hint">Backup to <span class="kbd">data/_drafts/</span></span>
+                </div>
+                <div class="editor-file-state" id="file-state">No changes</div>
+            </div>
+
+            <div class="editor-pane editor-pane--text" id="editor-pane-text">
+                <div class="editor-code" id="editor-code">
+                    <pre id="toml-highlight" class="editor-highlight editor-highlight--toml" aria-hidden="true"></pre>
+                    <textarea id="editor-textarea" class="editor-textarea" spellcheck="true" disabled></textarea>
+                </div>
+            </div>
+            <div class="editor-pane editor-pane--builder" id="editor-pane-builder" hidden>
+                <div id="builder-editor" class="builder-shell"></div>
+            </div>
+
+            <div class="editor-footnote">
+                <p><strong>Tip:</strong> Use <span class="kbd">Ctrl</span> + <span class="kbd">S</span> (or <span class="kbd">Cmd</span> + <span class="kbd">S</span>) to save.</p>
+                <p class="editor-toml-status" id="toml-status" hidden></p>
+                <p class="editor-warning" id="editor-warning" hidden>File system access is not supported in this browser. Use a Chromium-based browser (Chrome, Edge, Arc) for full editing support.</p>
+            </div>
+        </section>
+    </section>
+</main>
+
+<script src="{{ get_url(path = 'vendor/codemirror/codemirror.min.js') | safe }}"></script>
+<script src="{{ get_url(path = 'vendor/codemirror/mode/toml/toml.min.js') | safe }}"></script>
+<script src="{{ get_url(path = 'vendor/ajv.min.js') | safe }}"></script>
+<script type="module">
+import * as jToml from "{{ get_url(path = 'vendor/j-toml.mjs') | safe }}";
+
+(() => {
+    const openButton = document.getElementById('open-directory');
+    const reloadButton = document.getElementById('reload-file');
+    const saveButton = document.getElementById('save-file');
+    const fileSearch = document.getElementById('file-search');
+    const fileGroups = document.getElementById('file-groups');
+    const editorStatus = document.getElementById('editor-status');
+    const filePath = document.getElementById('file-path');
+    const fileState = document.getElementById('file-state');
+    const textarea = document.getElementById('editor-textarea');
+    const codeContainer = document.getElementById('editor-code');
+    const tomlHighlight = document.getElementById('toml-highlight');
+    const tomlStatus = document.getElementById('toml-status');
+    const modeContainer = document.getElementById('editor-mode');
+    const modeTextButton = document.getElementById('mode-text');
+    const modeBuilderButton = document.getElementById('mode-builder');
+    const paneText = document.getElementById('editor-pane-text');
+    const paneBuilder = document.getElementById('editor-pane-builder');
+    const builderContainer = document.getElementById('builder-editor');
+    const warning = document.getElementById('editor-warning');
+    const modeHint = document.getElementById('mode-hint');
+    const safeSaveToggle = document.getElementById('safe-save');
+
+    const BUILDER_HINT = 'Builder is available for Markdown (.md) files.';
+    const BUILDER_READY_HINT = 'Builder edits metadata and structured blocks (Text is advanced).';
+    const STORAGE_SUPPORTED = 'indexedDB' in window;
+    const DB_NAME = 'pdps-editor';
+    const DB_VERSION = 1;
+    const STORE_HANDLES = 'handles';
+    const STORE_STATE = 'state';
+    const PREVIEW_BASE = "{{ get_url(path = '') | safe }}";
+    const PREVIEW_CSS_URL = "{{ get_url(path = 'main.css') | safe }}";
+    const SEARCHABLE_EXTENSIONS = new Set([
+        'md', 'toml', 'txt', 'html', 'htm', 'css', 'scss', 'sass', 'js', 'ts', 'json', 'xml',
+        'yml', 'yaml', 'csv', 'svg', 'sh', 'tera'
+    ]);
+    const MAX_SEARCH_FILE_SIZE = 1024 * 1024 * 2;
+    const SEARCH_DEBOUNCE_MS = 200;
+
+    const BLOCK_LIBRARY = {
+        section_heading: {
+            label: 'Section heading',
+            description: 'Start a new section with a heading.',
+            defaults: { type: 'section_heading', text: 'Section heading' },
+            fields: [
+                { key: 'text', label: 'Heading', type: 'text', required: true, help: 'Required. The section title.', disallowHtml: true },
+                { key: 'lead', label: 'Lead text', type: 'textarea', help: 'Optional intro sentence.', disallowHtml: true },
+                { key: 'eyebrow', label: 'Eyebrow', type: 'text', help: 'Optional short label above the heading.', disallowHtml: true },
+                { key: 'level', label: 'Heading level', type: 'select', valueType: 'number', options: [
+                    { value: '', label: 'H2 (default)' },
+                    { value: '3', label: 'H3' },
+                    { value: '4', label: 'H4' }
+                ], help: 'Use H3 or H4 for sub-sections.' }
+            ]
+        },
+        paragraph: {
+            label: 'Paragraph',
+            description: 'Short paragraph of text.',
+            defaults: { type: 'paragraph', text: 'New paragraph.' },
+            fields: [
+                { key: 'text', label: 'Text', type: 'textarea', required: true, help: 'Plain text only (no HTML).', disallowHtml: true }
+            ]
+        },
+        markdown: {
+            label: 'Markdown',
+            description: 'Formatted text with markdown.',
+            defaults: { type: 'markdown', body: 'New markdown block.' },
+            fields: [
+                { key: 'body', label: 'Markdown', type: 'textarea', required: true, help: 'Markdown only. HTML is blocked in Builder.', disallowHtml: true }
+            ]
+        },
+        callout: {
+            label: 'Callout',
+            description: 'Highlighted note.',
+            defaults: { type: 'callout', text: '**New:** Callout text.' },
+            fields: [
+                { key: 'text', label: 'Text', type: 'textarea', required: true, help: 'Markdown allowed. HTML is blocked in Builder.', disallowHtml: true }
+            ]
+        },
+        card_grid: {
+            label: 'Card grid',
+            description: 'Grid of cards.',
+            defaults: {
+                type: 'card_grid',
+                variant: 'wide',
+                items: [{ title: 'Card title', body: 'Card text.' }]
+            },
+            fields: [
+                { key: 'variant', label: 'Layout', type: 'select', options: [
+                    { value: '', label: 'Standard' },
+                    { value: 'wide', label: 'Wide' }
+                ], help: 'Wide cards use a broader grid.' },
+                {
+                    key: 'items',
+                    label: 'Cards',
+                    type: 'items',
+                    itemLabel: 'Card',
+                    help: 'Add, remove, or reorder cards.',
+                    itemFields: [
+                        { key: 'title', label: 'Title', type: 'text', required: true, disallowHtml: true, help: 'Short card title.' },
+                        { key: 'body', label: 'Body', type: 'textarea', required: true, disallowHtml: true, help: 'Short descriptive text.' }
+                    ]
+                }
+            ]
+        },
+        timeline: {
+            label: 'Timeline',
+            description: 'Workshop history timeline.',
+            defaults: { type: 'timeline', limit: 3, exclude_upcoming: true },
+            fields: [
+                { key: 'limit', label: 'Max items', type: 'number', help: '0 shows all editions.' },
+                { key: 'exclude_upcoming', label: 'Hide upcoming', type: 'checkbox', help: 'Hide upcoming editions from the list.' }
+            ]
+        },
+        people_grid: {
+            label: 'People grid',
+            description: 'Grid of people from a data file.',
+            defaults: { type: 'people_grid', data: 'data/organizers_current.toml', columns: 4 },
+            fields: [
+                { key: 'data', label: 'Data file', type: 'text', required: true, help: 'Path to a TOML data file.', disallowHtml: true },
+                { key: 'list', label: 'List key', type: 'text', help: 'Optional: list name inside the data file.', disallowHtml: true },
+                { key: 'columns', label: 'Columns', type: 'select', valueType: 'number', options: [
+                    { value: '', label: 'Auto' },
+                    { value: '3', label: '3 columns' },
+                    { value: '4', label: '4 columns' }
+                ], help: 'Leave empty for auto sizing.' }
+            ]
+        },
+        schedule: {
+            label: 'Schedule',
+            description: 'Programme schedule table.',
+            defaults: { type: 'schedule', data: 'data/program_2025.toml' },
+            fields: [
+                { key: 'data', label: 'Data file', type: 'text', required: true, help: 'Path to a programme TOML file.', disallowHtml: true }
+            ]
+        },
+        button_row: {
+            label: 'Button row',
+            description: 'Row of action buttons.',
+            defaults: {
+                type: 'button_row',
+                items: [{ label: 'New button', href: '/' }]
+            },
+            fields: [
+                {
+                    key: 'items',
+                    label: 'Buttons',
+                    type: 'items',
+                    itemLabel: 'Button',
+                    help: 'Buttons can be internal paths or full URLs.',
+                    itemFields: [
+                        { key: 'label', label: 'Label', type: 'text', required: true, disallowHtml: true, help: 'Button text.' },
+                        { key: 'href', label: 'Link', type: 'text', required: true, disallowHtml: true, help: 'Internal path or full URL.' },
+                        { key: 'style', label: 'Style', type: 'select', options: [
+                            { value: '', label: 'Primary' },
+                            { value: 'ghost', label: 'Ghost' }
+                        ], help: 'Choose a button style.' },
+                        { key: 'size', label: 'Size', type: 'select', options: [
+                            { value: '', label: 'Normal' },
+                            { value: 'small', label: 'Small' }
+                        ], help: 'Optional smaller buttons.' },
+                        { key: 'new_tab', label: 'Open in new tab', type: 'checkbox', help: 'Open link in a new tab.' }
+                    ]
+                }
+            ]
+        },
+        two_column: {
+            label: 'Two column',
+            description: 'Two-column content row.',
+            defaults: {
+                type: 'two_column',
+                left_title: 'Left column',
+                left_body: 'Left column content.',
+                right_title: 'Right column',
+                right_body: 'Right column content.'
+            },
+            fields: [
+                { key: 'left_title', label: 'Left title', type: 'text', help: 'Optional column heading.', disallowHtml: true },
+                { key: 'left_body', label: 'Left body', type: 'textarea', required: true, help: 'Markdown allowed. HTML is blocked in Builder.', disallowHtml: true },
+                {
+                    key: 'left_buttons',
+                    label: 'Left buttons',
+                    type: 'items',
+                    itemLabel: 'Button',
+                    help: 'Optional: buttons for the left column.',
+                    itemFields: [
+                        { key: 'label', label: 'Label', type: 'text', required: true, disallowHtml: true, help: 'Button text.' },
+                        { key: 'href', label: 'Link', type: 'text', required: true, disallowHtml: true, help: 'Internal path or full URL.' },
+                        { key: 'style', label: 'Style', type: 'select', options: [
+                            { value: '', label: 'Primary' },
+                            { value: 'ghost', label: 'Ghost' }
+                        ], help: 'Choose a button style.' },
+                        { key: 'size', label: 'Size', type: 'select', options: [
+                            { value: '', label: 'Normal' },
+                            { value: 'small', label: 'Small' }
+                        ], help: 'Optional smaller buttons.' },
+                        { key: 'new_tab', label: 'Open in new tab', type: 'checkbox', help: 'Open link in a new tab.' }
+                    ]
+                },
+                { key: 'right_title', label: 'Right title', type: 'text', help: 'Optional column heading.', disallowHtml: true },
+                { key: 'right_body', label: 'Right body', type: 'textarea', required: true, help: 'Markdown allowed. HTML is blocked in Builder.', disallowHtml: true },
+                {
+                    key: 'right_buttons',
+                    label: 'Right buttons',
+                    type: 'items',
+                    itemLabel: 'Button',
+                    help: 'Optional: buttons for the right column.',
+                    itemFields: [
+                        { key: 'label', label: 'Label', type: 'text', required: true, disallowHtml: true, help: 'Button text.' },
+                        { key: 'href', label: 'Link', type: 'text', required: true, disallowHtml: true, help: 'Internal path or full URL.' },
+                        { key: 'style', label: 'Style', type: 'select', options: [
+                            { value: '', label: 'Primary' },
+                            { value: 'ghost', label: 'Ghost' }
+                        ], help: 'Choose a button style.' },
+                        { key: 'size', label: 'Size', type: 'select', options: [
+                            { value: '', label: 'Normal' },
+                            { value: 'small', label: 'Small' }
+                        ], help: 'Optional smaller buttons.' },
+                        { key: 'new_tab', label: 'Open in new tab', type: 'checkbox', help: 'Open link in a new tab.' }
+                    ]
+                }
+            ]
+        },
+        map_embed: {
+            label: 'Map embed',
+            description: 'Embedded map for a location.',
+            defaults: { type: 'map_embed', data: 'data/locations.toml' },
+            fields: [
+                { key: 'data', label: 'Data file', type: 'text', help: 'Optional: path to locations TOML.', disallowHtml: true },
+                { key: 'location', label: 'Location key', type: 'text', help: 'Optional: data key (e.g. primary).', disallowHtml: true },
+                { key: 'embed_url', label: 'Embed URL', type: 'text', help: 'Optional: direct embed URL.', disallowHtml: true },
+                { key: 'link_url', label: 'Link URL', type: 'text', help: 'Optional: external map link.', disallowHtml: true },
+                { key: 'title', label: 'Title', type: 'text', help: 'Optional: frame title.', disallowHtml: true },
+                { key: 'variant', label: 'Variant', type: 'text', help: 'Optional: style variant name.', disallowHtml: true }
+            ]
+        }
+    };
+
+    const BLOCK_ORDER = Object.keys(BLOCK_LIBRARY);
+
+    const BLOCK_SCHEMA = {
+        type: 'array',
+        items: {
+            anyOf: [
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'text'],
+                    properties: {
+                        type: { const: 'section_heading' },
+                        text: { type: 'string', minLength: 1 },
+                        lead: { type: 'string' },
+                        eyebrow: { type: 'string' },
+                        level: { type: 'integer', enum: [2, 3, 4] }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'text'],
+                    properties: {
+                        type: { const: 'paragraph' },
+                        text: { type: 'string', minLength: 1 }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'body'],
+                    properties: {
+                        type: { const: 'markdown' },
+                        body: { type: 'string', minLength: 1 }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'text'],
+                    properties: {
+                        type: { const: 'callout' },
+                        text: { type: 'string', minLength: 1 }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'items'],
+                    properties: {
+                        type: { const: 'card_grid' },
+                        variant: { type: 'string', enum: ['wide'] },
+                        items: {
+                            type: 'array',
+                            minItems: 1,
+                            items: {
+                                type: 'object',
+                                additionalProperties: false,
+                                required: ['title', 'body'],
+                                properties: {
+                                    title: { type: 'string', minLength: 1 },
+                                    body: { type: 'string', minLength: 1 }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'left_body', 'right_body'],
+                    properties: {
+                        type: { const: 'two_column' },
+                        left_title: { type: 'string' },
+                        left_body: { type: 'string', minLength: 1 },
+                        left_buttons: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                additionalProperties: false,
+                                required: ['label', 'href'],
+                                properties: {
+                                    label: { type: 'string', minLength: 1 },
+                                    href: { type: 'string', minLength: 1 },
+                                    style: { type: 'string', enum: ['ghost'] },
+                                    size: { type: 'string', enum: ['small'] },
+                                    new_tab: { type: 'boolean' }
+                                }
+                            }
+                        },
+                        right_title: { type: 'string' },
+                        right_body: { type: 'string', minLength: 1 }
+                        ,
+                        right_buttons: {
+                            type: 'array',
+                            items: {
+                                type: 'object',
+                                additionalProperties: false,
+                                required: ['label', 'href'],
+                                properties: {
+                                    label: { type: 'string', minLength: 1 },
+                                    href: { type: 'string', minLength: 1 },
+                                    style: { type: 'string', enum: ['ghost'] },
+                                    size: { type: 'string', enum: ['small'] },
+                                    new_tab: { type: 'boolean' }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type'],
+                    properties: {
+                        type: { const: 'timeline' },
+                        limit: { type: 'integer', minimum: 0 },
+                        exclude_upcoming: { type: 'boolean' }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'data'],
+                    properties: {
+                        type: { const: 'people_grid' },
+                        data: { type: 'string', minLength: 1 },
+                        list: { type: 'string' },
+                        columns: { type: 'integer', enum: [3, 4] }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'data'],
+                    properties: {
+                        type: { const: 'schedule' },
+                        data: { type: 'string', minLength: 1 }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type', 'items'],
+                    properties: {
+                        type: { const: 'button_row' },
+                        items: {
+                            type: 'array',
+                            minItems: 1,
+                            items: {
+                                type: 'object',
+                                additionalProperties: false,
+                                required: ['label', 'href'],
+                                properties: {
+                                    label: { type: 'string', minLength: 1 },
+                                    href: { type: 'string', minLength: 1 },
+                                    style: { type: 'string', enum: ['ghost'] },
+                                    size: { type: 'string', enum: ['small'] },
+                                    new_tab: { type: 'boolean' }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: ['type'],
+                    properties: {
+                        type: { const: 'map_embed' },
+                        data: { type: 'string', minLength: 1 },
+                        location: { type: 'string' },
+                        embed_url: { type: 'string', minLength: 1 },
+                        link_url: { type: 'string', minLength: 1 },
+                        title: { type: 'string' },
+                        variant: { type: 'string' }
+                    },
+                    anyOf: [
+                        { required: ['data'] },
+                        { required: ['embed_url'] }
+                    ]
+                }
+            ]
+        }
+    };
+
+    const HTML_TAG_RE = /<\s*\/?\s*[a-z][^>]*>/i;
+
+    const SPECIAL_PAGE_BLOCKS = {
+        'content/_index.md': [
+            { type: 'section_heading', text: 'Focus areas' },
+            { type: 'markdown', body: 'Each edition connects policy, technical, social, and methodological work. Talks are short; discussion comes first.' },
+            { type: 'card_grid', variant: 'wide', items: [
+                { title: 'Policy and law', body: 'Regulation, governance frameworks, enforcement, and legal design.' },
+                { title: 'Technical systems', body: 'Privacy-by-design, accountability, and risk assessment methods.' },
+                { title: 'Society and culture', body: 'Surveillance practices, social impacts, and lived experience.' },
+                { title: 'Methods and evidence', body: 'Empirical studies and cross-disciplinary research tools.' }
+            ] },
+            { type: 'section_heading', text: 'Organisers' },
+            { type: 'markdown', body: '**Current organisers**' },
+            { type: 'people_grid', data: 'data/organizers_current.toml', columns: 4 },
+            { type: 'markdown', body: '**Former organisers**' },
+            { type: 'people_grid', data: 'data/organizers_former.toml', columns: 4 },
+            { type: 'section_heading', text: 'Format & participation' },
+            { type: 'card_grid', variant: 'wide', items: [
+                { title: 'Format', body: 'Two thematic blocks per edition, short talks, and generous discussion time.' },
+                { title: 'Submission & review', body: 'Calls for submissions are managed in OpenReview, with deadlines announced per edition.' },
+                { title: 'Proceedings', body: 'Accepted papers are planned for open-access CEUR-WS proceedings using the CEURART template.' },
+                { title: 'Venue & access', body: 'The 2026 workshop is planned in Berlin. Hybrid access details follow the final programme.' }
+            ] },
+            { type: 'button_row', items: [
+                { label: 'Participation guide', href: '/participate/' },
+                { label: '2026 Edition', href: '/2026-1/' },
+                { label: 'Venue details', href: '/venue/' }
+            ] },
+            { type: 'section_heading', text: 'Archive' },
+            { type: 'timeline', limit: 3, exclude_upcoming: true },
+            { type: 'button_row', items: [{ label: 'Full archive', href: '/archive/' }] }
+        ],
+        'content/2026-1.md': [
+            { type: 'section_heading', text: 'Upcoming 2026 edition' },
+            { type: 'callout', text: '**Upcoming:** The 2026 PDPS Workshop will take place at the Weizenbaum Institute in early July 2026 (date TBA).' },
+            { type: 'card_grid', variant: 'wide', items: [
+                { title: 'Date', body: 'Early July 2026 (exact date to be confirmed)' },
+                { title: 'Venue', body: 'Weizenbaum Institute, Berlin' },
+                { title: 'Format', body: 'In-person with hybrid participation details shared in the final programme.' },
+                { title: 'Submissions', body: 'Call for submissions and deadlines will be posted here. Reviews run via OpenReview, with accepted papers planned for CEUR-WS proceedings.' },
+                { title: 'Registration', body: 'Registration details will be announced once the programme is finalised.' }
+            ] },
+            { type: 'markdown', body: '## Important dates (TBA)\n- Call for submissions opens: TBA\n- Submission deadline: TBA\n- Notifications: TBA\n- Workshop date: Early July 2026' },
+            { type: 'button_row', items: [{ label: 'Participation guide', href: '/participate/' }] },
+            { type: 'map_embed', data: 'data/locations.toml' },
+            { type: 'section_heading', text: 'Most recent workshop: 20th Interdisciplinary Workshop (16 December 2025)' },
+            { type: 'markdown', body: 'Below is the most recent complete programme.\n\n**Location:** Alexander von Humboldt Institute for Internet and Society, Franzosische Strasse 9, 10117 Berlin' },
+            { type: 'button_row', items: [{ label: 'Programme PDF', href: '/programs/2025-12-16-xx-program.pdf', new_tab: true, size: 'small' }] },
+            { type: 'section_heading', text: 'Schedule overview' },
+            { type: 'schedule', data: 'data/program_2025.toml' },
+            { type: 'section_heading', text: 'Speakers' },
+            { type: 'people_grid', data: 'data/program_2025.toml', list: 'speakers', columns: 4 }
+        ],
+        'content/venue.md': [
+            { type: 'section_heading', text: '2026 venue (Berlin)' },
+            { type: 'card_grid', variant: 'wide', items: [
+                { title: 'Weizenbaum Institute', body: 'Hardenbergstrasse 32, 10623 Berlin\n\nRoom access details will be shared with the final programme.' },
+                { title: 'Hybrid access', body: 'When hybrid participation is enabled, access details are shared with registered participants.' },
+                { title: 'On-site guidance', body: 'Check-in, room directions, and accessibility notes will be listed in the programme.' }
+            ] },
+            { type: 'map_embed', data: 'data/locations.toml' },
+            { type: 'section_heading', text: 'Other venues used for past editions' },
+            { type: 'card_grid', items: [
+                { title: 'Alexander von Humboldt Institute for Internet and Society (HIIG)', body: 'Franzosische Strasse 9, 10117 Berlin' },
+                { title: 'Hasso Plattner Institute (HPI)', body: 'Prof.-Dr.-Helmert-Str. 2-3, 14482 Potsdam' },
+                { title: 'IFHV', body: 'Massenbergstrasse 9B, 44787 Bochum' }
+            ] }
+        ]
+    };
+
+    const state = {
+        rootHandle: null,
+        fileMap: new Map(),
+        currentPath: null,
+        currentHandle: null,
+        originalText: '',
+        dirty: false,
+        mode: 'text',
+        canBuilder: false,
+        builderModel: null,
+        builderErrors: {
+            byField: new Map(),
+            byBlock: new Map(),
+            summary: []
+        },
+        errorElements: new Map(),
+        blockErrorElements: new Map(),
+        safeSave: true,
+        validator: null,
+        blockIdCounter: 0,
+        reconnectHandle: null,
+        pendingRestore: false,
+        isToml: false,
+        fileContentCache: new Map(),
+        searchToken: 0,
+        tomlEditor: null
+    };
+
+    const QUICK_GROUPS = [
+        {
+            name: 'Pages',
+            files: [
+                'content/_index.md',
+                'content/2026-1.md',
+                'content/participate.md',
+                'content/venue.md',
+                'content/archive/_index.md',
+                'content/contact.md',
+                'content/policies/privacy.md',
+                'content/policies/accessibility.md'
+            ]
+        },
+        {
+            name: 'Data',
+            files: [
+                'data/workshops.toml',
+                'data/organizers_current.toml',
+                'data/organizers_former.toml',
+                'data/program_2025.toml',
+                'data/locations.toml',
+                'data/talks/'
+            ]
+        },
+        {
+            name: 'Site config',
+            files: ['zola.toml']
+        }
+    ];
+
+    const supportsFs = 'showDirectoryPicker' in window;
+    if (!supportsFs) {
+        warning.hidden = false;
+        openButton.disabled = true;
+    }
+
+    const openEditorDb = () => new Promise((resolve, reject) => {
+        if (!STORAGE_SUPPORTED) {
+            resolve(null);
+            return;
+        }
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains(STORE_HANDLES)) {
+                db.createObjectStore(STORE_HANDLES);
+            }
+            if (!db.objectStoreNames.contains(STORE_STATE)) {
+                db.createObjectStore(STORE_STATE);
+            }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+    });
+
+    const idbGet = async (storeName, key) => {
+        const db = await openEditorDb();
+        if (!db) return null;
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readonly');
+            const store = tx.objectStore(storeName);
+            const request = store.get(key);
+            request.onsuccess = () => resolve(request.result ?? null);
+            request.onerror = () => reject(request.error);
+        });
+    };
+
+    const idbSet = async (storeName, key, value) => {
+        const db = await openEditorDb();
+        if (!db) return;
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            const store = tx.objectStore(storeName);
+            const request = store.put(value, key);
+            request.onsuccess = () => resolve(true);
+            request.onerror = () => reject(request.error);
+        });
+    };
+
+    const setStatus = (pill, hint) => {
+        editorStatus.innerHTML = `
+            <span class="status-pill">${pill}</span>
+            <span class="status-hint">${hint}</span>
+        `;
+    };
+
+    const setDirty = (dirty) => {
+        state.dirty = dirty;
+        fileState.textContent = dirty ? 'Unsaved changes' : 'No changes';
+        fileState.classList.toggle('is-dirty', dirty);
+        saveButton.disabled = !dirty || !state.currentHandle;
+        reloadButton.disabled = !state.currentHandle;
+    };
+
+    const refreshDirty = () => {
+        const current = getCurrentContent();
+        setDirty(current !== state.originalText);
+    };
+
+    const updateControls = () => {
+        textarea.disabled = !state.currentHandle;
+        fileSearch.disabled = state.fileMap.size === 0;
+        reloadButton.disabled = !state.currentHandle;
+        saveButton.disabled = !state.currentHandle || !state.dirty;
+        modeBuilderButton.disabled = !state.canBuilder;
+        modeBuilderButton.title = state.canBuilder ? BUILDER_READY_HINT : BUILDER_HINT;
+        if (modeContainer) {
+            const hideModes = state.isToml || !state.currentHandle;
+            modeContainer.hidden = hideModes;
+            modeContainer.style.display = hideModes ? 'none' : '';
+        }
+        if (!state.currentHandle) {
+            modeHint.textContent = '';
+        } else if (state.isToml) {
+            modeHint.textContent = '';
+        } else if (state.canBuilder) {
+            modeHint.textContent = BUILDER_READY_HINT;
+        } else {
+            modeHint.textContent = BUILDER_HINT;
+        }
+    };
+
+    const setMode = (mode) => {
+        state.mode = mode;
+        const isText = mode === 'text';
+        const isBuilder = mode === 'builder';
+        paneText.hidden = !isText;
+        paneBuilder.hidden = !isBuilder;
+        modeTextButton.classList.toggle('is-active', isText);
+        modeBuilderButton.classList.toggle('is-active', isBuilder);
+        modeTextButton.setAttribute('aria-pressed', isText ? 'true' : 'false');
+        modeBuilderButton.setAttribute('aria-pressed', isBuilder ? 'true' : 'false');
+    };
+
+    const decodeHtml = (value) => value
+        .replace(/&quot;/g, '"')
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&amp;/g, '&');
+
+    const encodeHtml = (value) => value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+
+    const hasBodyContent = (body) => typeof body === 'string' && body.trim().length > 0;
+
+    const normalizeValue = (value, stripPrivate = false) => {
+        if (typeof value === 'bigint') {
+            return Number(value);
+        }
+        if (Array.isArray(value)) {
+            return value.map((item) => normalizeValue(item, stripPrivate));
+        }
+        if (value && typeof value === 'object') {
+            const output = {};
+            Object.keys(value).forEach((key) => {
+                if (stripPrivate && key.startsWith('_')) return;
+                output[key] = normalizeValue(value[key], stripPrivate);
+            });
+            return output;
+        }
+        return value;
+    };
+
+    const parseFrontMatter = (text) => {
+        const frontMatterRegex = /^\+\+\+\s*\n([\s\S]*?)\n\+\+\+\s*\n?/;
+        const match = text.match(frontMatterRegex);
+        if (!match) {
+            return {
+                hasFrontMatter: false,
+                meta: {},
+                body: text,
+                raw: '',
+                parseError: false
+            };
+        }
+        const raw = match[1];
+        const body = text.slice(match[0].length);
+        try {
+            return {
+                hasFrontMatter: true,
+                meta: jToml.parse(raw.replace(/\]\s*\n\s*\}/g, '] }')),
+                body,
+                raw,
+                parseError: false
+            };
+        } catch (error) {
+            return {
+                hasFrontMatter: true,
+                meta: {},
+                body,
+                raw,
+                parseError: true
+            };
+        }
+    };
+
+    const buildModelFromText = (text, path) => {
+        const parsed = parseFrontMatter(text);
+        if (parsed.parseError) {
+            return {
+                type: 'generic',
+                hasFrontMatter: parsed.hasFrontMatter,
+                meta: {},
+                body: parsed.body || '',
+                parseError: true
+            };
+        }
+        const meta = normalizeValue(parsed.meta || {});
+        const extra = meta.extra && typeof meta.extra === 'object' && !Array.isArray(meta.extra)
+            ? meta.extra
+            : {};
+        const blocks = Array.isArray(extra.blocks)
+            ? extra.blocks
+            : (Array.isArray(meta.blocks) ? meta.blocks : []);
+        const cleanedMeta = { ...meta };
+        delete cleanedMeta.blocks;
+        if (cleanedMeta.extra && typeof cleanedMeta.extra === 'object' && !Array.isArray(cleanedMeta.extra)) {
+            cleanedMeta.extra = { ...cleanedMeta.extra };
+            delete cleanedMeta.extra.blocks;
+            if (Object.keys(cleanedMeta.extra).length === 0) {
+                delete cleanedMeta.extra;
+            }
+        }
+        const presetBlocks = SPECIAL_PAGE_BLOCKS[path];
+        const hasPreset = Boolean(presetBlocks);
+        const seededFromPreset = blocks.length === 0 && hasPreset;
+        const finalBlocks = normalizeValue(
+            seededFromPreset ? cloneBlocks(presetBlocks) : blocks,
+            true
+        );
+        assignBlockMetadata(finalBlocks, seededFromPreset);
+        return {
+            type: 'generic',
+            hasFrontMatter: parsed.hasFrontMatter,
+            meta: cleanedMeta,
+            blocks: finalBlocks,
+            body: parsed.body || '',
+            parseError: false
+        };
+    };
+
+    const cloneBlocks = (blocks) => JSON.parse(JSON.stringify(blocks));
+
+    const assignBlockMetadata = (blocks, lockAll = false) => {
+        if (!Array.isArray(blocks)) return [];
+        blocks.forEach((block) => {
+            if (!block._id) {
+                state.blockIdCounter += 1;
+                block._id = `block-${state.blockIdCounter}`;
+            }
+            if (lockAll) {
+                block._locked = true;
+            }
+        });
+        return blocks;
+    };
+
+    const getCurrentContent = () => {
+        if (state.mode === 'builder' && state.builderModel) {
+            return buildBuilderContent(state.builderModel, textarea.value);
+        }
+        return textarea.value;
+    };
+
+    const syncBuilderToText = () => {
+        if (!state.builderModel) return;
+        textarea.value = buildBuilderContent(state.builderModel, textarea.value);
+    };
+
+    const syncTextToBuilder = () => {
+        const text = textarea.value || '';
+        const parsed = buildModelFromText(text, state.currentPath);
+        state.builderModel = parsed;
+        if (parsed.parseError) {
+            setStatus('Builder warning', 'Front matter could not be parsed. Fix in Text mode.');
+            state.canBuilder = false;
+            updateControls();
+            return;
+        }
+        renderBuilder(parsed);
+    };
+
+    const buildBuilderContent = (model) => {
+        const body = model.body ?? '';
+        const meta = model.meta || {};
+        const blocks = Array.isArray(model.blocks) ? model.blocks : [];
+        const metaWithBlocks = { ...meta };
+        delete metaWithBlocks.blocks;
+        const extra = metaWithBlocks.extra && typeof metaWithBlocks.extra === 'object' && !Array.isArray(metaWithBlocks.extra)
+            ? { ...metaWithBlocks.extra }
+            : {};
+        extra.blocks = cleanBlocks(blocks);
+        metaWithBlocks.extra = extra;
+        const metaTextRaw = jToml.stringify(metaWithBlocks);
+        const metaText = Array.isArray(metaTextRaw)
+            ? metaTextRaw.join('\n')
+            : String(metaTextRaw);
+        const trimmedMeta = metaText.trim();
+        if (!trimmedMeta && !model.hasFrontMatter) {
+            return body;
+        }
+        return `+++\n${trimmedMeta}\n+++\n\n${body}`;
+    };
+
+    const cleanBlocks = (blocks) => (blocks || []).map((block) => normalizeValue(block || {}, true));
+
+    const initValidator = () => {
+        if (!window.Ajv) {
+            setStatus('Validator missing', 'AJV failed to load.');
+            return null;
+        }
+        try {
+            const ajv = new window.Ajv({ allErrors: true, jsonPointers: true });
+            return ajv.compile(BLOCK_SCHEMA);
+        } catch (error) {
+            setStatus('Validator error', 'Unable to initialise block validation.');
+            return null;
+        }
+    };
+
+    const normaliseDataPath = (dataPath, keyword, params) => {
+        if (!dataPath) {
+            if (keyword === 'required' && params && params.missingProperty) {
+                return params.missingProperty;
+            }
+            return '';
+        }
+        let path = dataPath;
+        if (keyword === 'required' && params && params.missingProperty) {
+            if (path.startsWith('/')) {
+                path = `${path}/${params.missingProperty}`;
+            } else {
+                path = `${path}.${params.missingProperty}`;
+            }
+        }
+        if (path.startsWith('/')) {
+            return path
+                .split('/')
+                .slice(1)
+                .map((segment) => segment.replace(/~1/g, '/').replace(/~0/g, '~'))
+                .join('.');
+        }
+        return path.replace(/^\./, '').replace(/\[(\d+)\]/g, '.$1');
+    };
+
+    const addFieldError = (blockIndex, fieldPath, message) => {
+        const key = `${blockIndex}:${fieldPath}`;
+        if (!state.builderErrors.byField.has(key)) {
+            state.builderErrors.byField.set(key, []);
+        }
+        state.builderErrors.byField.get(key).push(message);
+    };
+
+    const addBlockError = (blockIndex, message) => {
+        if (!state.builderErrors.byBlock.has(blockIndex)) {
+            state.builderErrors.byBlock.set(blockIndex, []);
+        }
+        state.builderErrors.byBlock.get(blockIndex).push(message);
+    };
+
+    const validateBlocks = (blocksOverride = null) => {
+        state.builderErrors.byField.clear();
+        state.builderErrors.byBlock.clear();
+        state.builderErrors.summary = [];
+        const sourceBlocks = Array.isArray(blocksOverride)
+            ? blocksOverride
+            : (state.builderModel?.blocks || []);
+        const blocks = cleanBlocks(sourceBlocks);
+        if (!state.validator) {
+            state.builderErrors.summary.push('Validation unavailable.');
+            return true;
+        }
+        const valid = state.validator(blocks);
+        if (!valid && state.validator.errors) {
+            state.validator.errors.forEach((error) => {
+                const path = normaliseDataPath(error.dataPath || error.instancePath || '', error.keyword, error.params);
+                const segments = path ? path.split('.') : [];
+                const blockIndex = segments.length > 0 && !Number.isNaN(Number(segments[0])) ? Number(segments[0]) : null;
+                const fieldPath = segments.slice(1).join('.');
+                const message = error.message || 'Invalid value.';
+                if (blockIndex === null) {
+                    state.builderErrors.summary.push(message);
+                } else if (fieldPath) {
+                    addFieldError(blockIndex, fieldPath, message);
+                } else {
+                    addBlockError(blockIndex, message);
+                }
+            });
+        }
+
+        sourceBlocks.forEach((block, index) => {
+            const definition = BLOCK_LIBRARY[block.type];
+            if (!definition) {
+                addBlockError(index, 'Unsupported block type.');
+                return;
+            }
+            const fields = definition.fields || [];
+            fields.forEach((field) => {
+                if (field.type === 'items') {
+                    const items = Array.isArray(block[field.key]) ? block[field.key] : [];
+                    items.forEach((item, itemIndex) => {
+                        (field.itemFields || []).forEach((itemField) => {
+                            if (!itemField.disallowHtml) return;
+                            const value = item?.[itemField.key];
+                            if (typeof value === 'string' && HTML_TAG_RE.test(value)) {
+                                addFieldError(index, `${field.key}.${itemIndex}.${itemField.key}`, 'HTML is not allowed in Builder.');
+                            }
+                        });
+                    });
+                } else if (field.disallowHtml) {
+                    const value = block[field.key];
+                    if (typeof value === 'string' && HTML_TAG_RE.test(value)) {
+                        addFieldError(index, field.key, 'HTML is not allowed in Builder.');
+                    }
+                }
+            });
+        });
+
+        return state.builderErrors.byField.size === 0 && state.builderErrors.byBlock.size === 0 && state.builderErrors.summary.length === 0;
+    };
+
+    const refreshErrorElements = () => {
+        state.errorElements.clear();
+        state.blockErrorElements.clear();
+        builderContainer.querySelectorAll('[data-error-for]').forEach((el) => {
+            state.errorElements.set(el.dataset.errorFor, el);
+        });
+        builderContainer.querySelectorAll('[data-block-error-for]').forEach((el) => {
+            state.blockErrorElements.set(el.dataset.blockErrorFor, el);
+        });
+    };
+
+    const applyValidationState = () => {
+        builderContainer.querySelectorAll('.builder-field').forEach((field) => {
+            field.classList.remove('has-error');
+        });
+        builderContainer.querySelectorAll('.builder-block').forEach((block) => {
+            block.classList.remove('is-invalid');
+        });
+        state.errorElements.forEach((el) => {
+            el.textContent = '';
+            el.hidden = true;
+        });
+        state.blockErrorElements.forEach((el) => {
+            el.textContent = '';
+            el.hidden = true;
+        });
+
+        state.builderErrors.byField.forEach((messages, key) => {
+            const element = state.errorElements.get(key);
+            if (!element) return;
+            element.textContent = messages[0];
+            element.hidden = false;
+            const field = element.closest('.builder-field');
+            if (field) field.classList.add('has-error');
+        });
+
+        state.builderErrors.byBlock.forEach((messages, index) => {
+            const element = state.blockErrorElements.get(String(index));
+            if (element) {
+                element.textContent = messages[0];
+                element.hidden = false;
+            }
+            const block = builderContainer.querySelector(`.builder-block[data-index="${index}"]`);
+            if (block) block.classList.add('is-invalid');
+        });
+
+        const alert = builderContainer.querySelector('[data-builder-alert]');
+        if (alert) {
+            if (state.builderErrors.byField.size || state.builderErrors.byBlock.size || state.builderErrors.summary.length) {
+                const count = state.builderErrors.byField.size + state.builderErrors.byBlock.size + state.builderErrors.summary.length;
+                alert.textContent = `Fix ${count} validation issue${count === 1 ? '' : 's'} before saving.`;
+                alert.hidden = false;
+            } else {
+                alert.textContent = '';
+                alert.hidden = true;
+            }
+        }
+    };
+
+    const escapeHtml = (value) => encodeHtml(String(value ?? ''));
+
+    const enableTomlEditor = () => {
+        if (state.tomlEditor || !window.CodeMirror) return state.tomlEditor;
+        const editor = window.CodeMirror.fromTextArea(textarea, {
+            mode: 'toml',
+            lineNumbers: true,
+            lineWrapping: false,
+            tabSize: 4,
+            indentUnit: 4
+        });
+        editor.on('change', () => {
+            const value = editor.getValue();
+            textarea.value = value;
+            setDirty(value !== state.originalText);
+            validateToml();
+        });
+        state.tomlEditor = editor;
+        return editor;
+    };
+
+    const disableTomlEditor = () => {
+        if (!state.tomlEditor) return;
+        state.tomlEditor.toTextArea();
+        state.tomlEditor = null;
+    };
+
+    const syncTomlScroll = () => {
+        if (!state.isToml || state.tomlEditor) return;
+        tomlHighlight.scrollTop = textarea.scrollTop;
+        tomlHighlight.scrollLeft = textarea.scrollLeft;
+    };
+
+    const highlightToml = (text) => {
+        const lines = (text || '').split('\n');
+        return lines.map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed) return '';
+            if (trimmed.startsWith('#')) {
+                return `<span class="toml-comment">${escapeHtml(line)}</span>`;
+            }
+            if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+                return `<span class="toml-section">${escapeHtml(line)}</span>`;
+            }
+            let eqIndex = -1;
+            let inSingle = false;
+            let inDouble = false;
+            for (let i = 0; i < line.length; i += 1) {
+                const char = line[i];
+                if (char === "'" && !inDouble) {
+                    inSingle = !inSingle;
+                } else if (char === '"' && !inSingle) {
+                    if (line[i - 1] !== '\\') inDouble = !inDouble;
+                }
+                if (!inSingle && !inDouble && char === '=') {
+                    eqIndex = i;
+                    break;
+                }
+            }
+            if (eqIndex === -1) {
+                return escapeHtml(line);
+            }
+            const key = line.slice(0, eqIndex);
+            const rest = line.slice(eqIndex + 1);
+            const keyHtml = `<span class="toml-key">${escapeHtml(key)}</span>`;
+            const valueHtml = highlightTomlValue(rest);
+            return `${keyHtml}<span class="toml-punct">=</span>${valueHtml}`;
+        }).join('\n');
+    };
+
+    const highlightTomlValue = (value) => {
+        let output = '';
+        let i = 0;
+        let inSingle = false;
+        let inDouble = false;
+        const pushText = (text) => {
+            if (!text) return;
+            let chunk = escapeHtml(text);
+            chunk = chunk
+                .replace(/\b(true|false)\b/g, '<span class="toml-boolean">$1</span>')
+                .replace(/\b-?\d+(?:\.\d+)?\b/g, '<span class="toml-number">$&</span>')
+                .replace(/\b\d{4}-\d{2}-\d{2}(?:[Tt ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?\b/g, '<span class="toml-date">$&</span>')
+                .replace(/[\[\]\{\},]/g, '<span class="toml-punct">$&</span>');
+            output += chunk;
+        };
+        while (i < value.length) {
+            const char = value[i];
+            if (!inSingle && char === '"' && value[i - 1] !== '\\') {
+                inDouble = !inDouble;
+                output += `<span class="toml-string">${escapeHtml(char)}</span>`;
+                i += 1;
+                continue;
+            }
+            if (!inDouble && char === "'") {
+                inSingle = !inSingle;
+                output += `<span class="toml-string">${escapeHtml(char)}</span>`;
+                i += 1;
+                continue;
+            }
+            if (!inSingle && !inDouble && char === '#') {
+                pushText(value.slice(0, i));
+                output += `<span class="toml-comment">${escapeHtml(value.slice(i))}</span>`;
+                return output;
+            }
+            if (inSingle || inDouble) {
+                output += `<span class="toml-string">${escapeHtml(char)}</span>`;
+                i += 1;
+                continue;
+            }
+            let start = i;
+            while (i < value.length) {
+                const ch = value[i];
+                if (ch === '"' || ch === "'" || ch === '#') break;
+                i += 1;
+            }
+            pushText(value.slice(start, i));
+        }
+        return output;
+    };
+
+    const updateTomlHighlight = () => {
+        if (!state.isToml || state.tomlEditor) return;
+        tomlHighlight.innerHTML = highlightToml(textarea.value || '');
+        syncTomlScroll();
+    };
+
+    const validateToml = () => {
+        if (!state.isToml) {
+            tomlStatus.textContent = '';
+            tomlStatus.hidden = true;
+            return { valid: true };
+        }
+        try {
+            const source = state.tomlEditor ? state.tomlEditor.getValue() : (textarea.value || '');
+            if (state.tomlEditor) {
+                textarea.value = source;
+            }
+            jToml.parse(source);
+            tomlStatus.textContent = '';
+            tomlStatus.hidden = true;
+            return { valid: true };
+        } catch (error) {
+            tomlStatus.textContent = `TOML error: ${error.message}`;
+            tomlStatus.hidden = false;
+            return { valid: false, error };
+        }
+    };
+
+    const renderMetaSection = (meta) => {
+        const draftChecked = meta.draft ? 'checked' : '';
+        return `
+            <div class="builder-section">
+                <div class="builder-section-header">
+                    <h2>Page metadata</h2>
+                </div>
+                <div class="builder-field">
+                    <label>Title</label>
+                    <input type="text" value="${escapeHtml(meta.title || '')}" data-meta-field="title">
+                </div>
+                <div class="builder-field">
+                    <label>Description</label>
+                    <textarea data-meta-field="description">${escapeHtml(meta.description || '')}</textarea>
+                </div>
+                <div class="builder-field">
+                    <label>Template</label>
+                    <input type="text" value="${escapeHtml(meta.template || '')}" data-meta-field="template">
+                </div>
+                <div class="builder-field">
+                    <label>Date</label>
+                    <input type="text" value="${escapeHtml(meta.date || '')}" data-meta-field="date">
+                </div>
+                <div class="builder-field">
+                    <label>Slug</label>
+                    <input type="text" value="${escapeHtml(meta.slug || '')}" data-meta-field="slug">
+                </div>
+                <div class="builder-field">
+                    <label>Weight</label>
+                    <input type="number" value="${escapeHtml(meta.weight ?? '')}" data-meta-field="weight">
+                </div>
+                <div class="builder-field builder-field--inline">
+                    <label>
+                        <input type="checkbox" data-meta-field="draft" ${draftChecked}>
+                        Draft
+                    </label>
+                </div>
+                <p class="builder-note">Other metadata is preserved. The page body is untouched; blocks drive the layout.</p>
+            </div>
+        `;
+    };
+
+    const renderItemInput = (fieldKey, index, itemIndex, itemField, itemValue) => {
+        if (itemField.type === 'textarea') {
+            return `<textarea data-block-index="${index}" data-field="${fieldKey}" data-item-index="${itemIndex}" data-item-field="${itemField.key}">${escapeHtml(itemValue)}</textarea>`;
+        }
+        if (itemField.type === 'select') {
+            const options = (itemField.options || []).map((option) => {
+                const isSelected = String(itemValue ?? '') === String(option.value ?? '');
+                return `<option value="${escapeHtml(option.value ?? '')}" ${isSelected ? 'selected' : ''}>${option.label}</option>`;
+            }).join('');
+            return `<select data-block-index="${index}" data-field="${fieldKey}" data-item-index="${itemIndex}" data-item-field="${itemField.key}">${options}</select>`;
+        }
+        if (itemField.type === 'checkbox') {
+            const checked = itemValue ? 'checked' : '';
+            return `<input type="checkbox" data-block-index="${index}" data-field="${fieldKey}" data-item-index="${itemIndex}" data-item-field="${itemField.key}" ${checked}>`;
+        }
+        if (itemField.type === 'number') {
+            return `<input type="number" value="${escapeHtml(itemValue ?? '')}" data-block-index="${index}" data-field="${fieldKey}" data-item-index="${itemIndex}" data-item-field="${itemField.key}">`;
+        }
+        return `<input type="text" value="${escapeHtml(itemValue ?? '')}" data-block-index="${index}" data-field="${fieldKey}" data-item-index="${itemIndex}" data-item-field="${itemField.key}">`;
+    };
+
+    const renderBlockField = (block, index, field) => {
+        const fieldKey = field.key;
+        const fieldValue = block[fieldKey];
+        const errorKey = `${index}:${fieldKey}`;
+
+        if (field.type === 'items') {
+            const items = Array.isArray(fieldValue) ? fieldValue : [];
+            const itemHtml = items.map((item, itemIndex) => {
+                const itemFields = (field.itemFields || []).map((itemField) => {
+                    const itemValue = item?.[itemField.key] ?? '';
+                    const itemFieldPath = `${fieldKey}.${itemIndex}.${itemField.key}`;
+                    const itemErrorKey = `${index}:${itemFieldPath}`;
+                    return `
+                        <div class="builder-field">
+                            <label>${itemField.label}</label>
+                            ${renderItemInput(fieldKey, index, itemIndex, itemField, itemValue)}
+                            ${itemField.help ? `<p class="builder-help">${itemField.help}</p>` : ''}
+                            <p class="builder-error" data-error-for="${itemErrorKey}" hidden></p>
+                        </div>
+                    `;
+                }).join('');
+                return `
+                    <div class="builder-item" data-item-index="${itemIndex}">
+                        <div class="builder-item-header">
+                            <span>${field.itemLabel} ${itemIndex + 1}</span>
+                            <div class="builder-block-actions">
+                                <button type="button" class="builder-mini-btn" data-action="move-item-up" data-block-index="${index}" data-field="${fieldKey}" data-item-index="${itemIndex}">Up</button>
+                                <button type="button" class="builder-mini-btn" data-action="move-item-down" data-block-index="${index}" data-field="${fieldKey}" data-item-index="${itemIndex}">Down</button>
+                                <button type="button" class="builder-mini-btn" data-action="remove-item" data-block-index="${index}" data-field="${fieldKey}" data-item-index="${itemIndex}">Remove</button>
+                            </div>
+                        </div>
+                        ${itemFields}
+                    </div>
+                `;
+            }).join('');
+            return `
+                <div class="builder-field">
+                    <label>${field.label}</label>
+                    ${field.help ? `<p class="builder-help">${field.help}</p>` : ''}
+                    <div class="builder-items" data-items="${fieldKey}">
+                        ${itemHtml}
+                    </div>
+                    <button type="button" class="builder-mini-btn" data-action="add-item" data-block-index="${index}" data-field="${fieldKey}">Add ${field.itemLabel}</button>
+                    <p class="builder-error" data-error-for="${errorKey}" hidden></p>
+                </div>
+            `;
+        }
+
+        if (field.type === 'select') {
+            const options = (field.options || []).map((option) => {
+                const isSelected = String(fieldValue ?? '') === String(option.value ?? '');
+                return `<option value="${escapeHtml(option.value ?? '')}" ${isSelected ? 'selected' : ''}>${option.label}</option>`;
+            }).join('');
+            return `
+                <div class="builder-field">
+                    <label>${field.label}</label>
+                    <select data-block-index="${index}" data-field="${fieldKey}">
+                        ${options}
+                    </select>
+                    ${field.help ? `<p class="builder-help">${field.help}</p>` : ''}
+                    <p class="builder-error" data-error-for="${errorKey}" hidden></p>
+                </div>
+            `;
+        }
+
+        if (field.type === 'checkbox') {
+            const checked = fieldValue ? 'checked' : '';
+            return `
+                <div class="builder-field builder-field--inline">
+                    <label>
+                        <input type="checkbox" data-block-index="${index}" data-field="${fieldKey}" ${checked}>
+                        ${field.label}
+                    </label>
+                    ${field.help ? `<p class="builder-help">${field.help}</p>` : ''}
+                    <p class="builder-error" data-error-for="${errorKey}" hidden></p>
+                </div>
+            `;
+        }
+
+        if (field.type === 'number') {
+            return `
+                <div class="builder-field">
+                    <label>${field.label}</label>
+                    <input type="number" value="${escapeHtml(fieldValue ?? '')}" data-block-index="${index}" data-field="${fieldKey}">
+                    ${field.help ? `<p class="builder-help">${field.help}</p>` : ''}
+                    <p class="builder-error" data-error-for="${errorKey}" hidden></p>
+                </div>
+            `;
+        }
+
+        if (field.type === 'textarea') {
+            return `
+                <div class="builder-field">
+                    <label>${field.label}</label>
+                    <textarea data-block-index="${index}" data-field="${fieldKey}">${escapeHtml(fieldValue ?? '')}</textarea>
+                    ${field.help ? `<p class="builder-help">${field.help}</p>` : ''}
+                    <p class="builder-error" data-error-for="${errorKey}" hidden></p>
+                </div>
+            `;
+        }
+
+        return `
+            <div class="builder-field">
+                <label>${field.label}</label>
+                <input type="text" value="${escapeHtml(fieldValue ?? '')}" data-block-index="${index}" data-field="${fieldKey}">
+                ${field.help ? `<p class="builder-help">${field.help}</p>` : ''}
+                <p class="builder-error" data-error-for="${errorKey}" hidden></p>
+            </div>
+        `;
+    };
+
+    const renderBlockCard = (block, index) => {
+        const definition = BLOCK_LIBRARY[block.type];
+        const locked = Boolean(block._locked);
+        if (!definition) {
+            return `
+                <div class="builder-block is-invalid" data-index="${index}">
+                    <div class="builder-block-header">
+                        <div>
+                            <div class="builder-block-type">Unsupported block</div>
+                            <div class="builder-block-meta">Type: ${escapeHtml(block.type || 'unknown')}</div>
+                        </div>
+                        <div class="builder-block-actions">
+                            <button type="button" class="builder-mini-btn" data-action="remove-block" data-block-index="${index}">Remove</button>
+                        </div>
+                    </div>
+                    <p class="builder-error">This block type is not supported in Builder. Use Text mode to edit.</p>
+                </div>
+            `;
+        }
+        const fields = (definition.fields || []).map((field) => renderBlockField(block, index, field)).join('');
+        return `
+            <div class="builder-block" data-index="${index}">
+                <div class="builder-block-header">
+                    <div>
+                        <div class="builder-block-type">${definition.label}</div>
+                        <div class="builder-block-meta">
+                            <span>${definition.description}</span>
+                            ${locked ? '<span class="pill">Required</span>' : ''}
+                            <span class="builder-error" data-block-error-for="${index}" hidden></span>
+                        </div>
+                    </div>
+                    <div class="builder-block-actions">
+                        <button type="button" class="builder-mini-btn" data-action="move-block-up" data-block-index="${index}" ${locked ? 'disabled' : ''}>Up</button>
+                        <button type="button" class="builder-mini-btn" data-action="move-block-down" data-block-index="${index}" ${locked ? 'disabled' : ''}>Down</button>
+                        <button type="button" class="builder-mini-btn" data-action="duplicate-block" data-block-index="${index}" ${locked ? 'disabled' : ''}>Duplicate</button>
+                        <button type="button" class="builder-mini-btn" data-action="remove-block" data-block-index="${index}" ${locked ? 'disabled' : ''}>Remove</button>
+                    </div>
+                </div>
+                ${fields}
+            </div>
+        `;
+    };
+
+    const renderPreviewBlocks = (blocks) => {
+        return (blocks || []).map((block) => {
+            switch (block.type) {
+                case 'section_heading':
+                    return `<h2>${escapeHtml(block.text || '')}</h2>${block.lead ? `<p class="lead">${escapeHtml(block.lead)}</p>` : ''}`;
+                case 'paragraph':
+                    return `<p>${escapeHtml(block.text || '')}</p>`;
+                case 'markdown':
+                    return renderPreviewMarkdown(block.body || '');
+                case 'callout':
+                    return `<div class="callout">${renderPreviewMarkdown(block.text || '')}</div>`;
+                case 'card_grid':
+                    return `<div class="card-grid${block.variant === 'wide' ? ' card-grid--wide' : ''}">${(block.items || []).map((item) => `
+                        <div class="card">
+                            <h3>${escapeHtml(item.title || '')}</h3>
+                            ${renderPreviewMarkdown(item.body || '')}
+                        </div>
+                    `).join('')}</div>`;
+                case 'button_row':
+                    return `<div class="button-row">${(block.items || []).map((item) => `<span class="btn">${escapeHtml(item.label || '')}</span>`).join('')}</div>`;
+                case 'two_column':
+                    return `<div class="two-column">
+                        <div class="two-column__col">
+                            ${block.left_title ? `<h3>${escapeHtml(block.left_title || '')}</h3>` : ''}
+                            ${renderPreviewMarkdown(block.left_body || '')}
+                            ${(block.left_buttons || []).length ? `<div class="button-row">${(block.left_buttons || []).map((item) => `<span class="btn">${escapeHtml(item.label || '')}</span>`).join('')}</div>` : ''}
+                        </div>
+                        <div class="two-column__col">
+                            ${block.right_title ? `<h3>${escapeHtml(block.right_title || '')}</h3>` : ''}
+                            ${renderPreviewMarkdown(block.right_body || '')}
+                            ${(block.right_buttons || []).length ? `<div class="button-row">${(block.right_buttons || []).map((item) => `<span class="btn">${escapeHtml(item.label || '')}</span>`).join('')}</div>` : ''}
+                        </div>
+                    </div>`;
+                case 'timeline':
+                    return `<div class="callout">Timeline preview (data-driven).</div>`;
+                case 'people_grid':
+                    return `<div class="callout">People grid preview (data-driven).</div>`;
+                case 'schedule':
+                    return `<div class="callout">Schedule preview (data-driven).</div>`;
+                case 'map_embed':
+                    return `<div class="callout">Map preview (data-driven).</div>`;
+                default:
+                    return '';
+            }
+        }).join('');
+    };
+
+    const renderPreviewMarkdown = (text) => {
+        const escaped = escapeHtml(text);
+        const withBold = escaped.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        const lines = withBold.split(/\n/);
+        let html = '';
+        let inList = false;
+        lines.forEach((line) => {
+            if (line.startsWith('### ')) {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += `<h3>${line.slice(4)}</h3>`;
+            } else if (line.startsWith('## ')) {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += `<h2>${line.slice(3)}</h2>`;
+            } else if (line.startsWith('# ')) {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += `<h1>${line.slice(2)}</h1>`;
+            } else if (line.startsWith('- ')) {
+                if (!inList) {
+                    html += '<ul>';
+                    inList = true;
+                }
+                html += `<li>${line.slice(2)}</li>`;
+            } else if (line.trim() === '') {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += '<br>';
+            } else {
+                if (inList) { html += '</ul>'; inList = false; }
+                html += `<p>${line}</p>`;
+            }
+        });
+        if (inList) {
+            html += '</ul>';
+        }
+        return html;
+    };
+
+    const renderBlocksSection = (blocks) => {
+        const blockCards = (blocks || []).map((block, index) => renderBlockCard(block, index)).join('');
+        const blockOptions = BLOCK_ORDER.map((type) => {
+            const block = BLOCK_LIBRARY[type];
+            return `<option value="${type}">${block.label}</option>`;
+        }).join('');
+        return `
+            <div class="builder-section">
+                <div class="builder-section-header">
+                    <h2>Blocks</h2>
+                    <div class="builder-actions">
+                        <select id="block-type-select">${blockOptions}</select>
+                        <button type="button" class="btn btn--ghost btn--small" data-action="add-block">Add block</button>
+                        <button type="button" class="btn btn--ghost btn--small" data-action="open-preview">Open preview</button>
+                    </div>
+                </div>
+                <p class="builder-note">Reorder blocks with the arrows. HTML is blocked in Builder fields.</p>
+                <div class="builder-alert" data-builder-alert hidden></div>
+                <div class="builder-block-list">
+                    ${blockCards}
+                </div>
+            </div>
+        `;
+    };
+
+    const renderBuilder = (model) => {
+        if (!model) return;
+        if (model.parseError) {
+            builderContainer.innerHTML = `
+                <div class="builder-section">
+                    <div class="builder-section-header">
+                        <h2>Builder unavailable</h2>
+                    </div>
+                    <p class="builder-note">Front matter could not be parsed. Use Text mode to fix it.</p>
+                </div>
+            `;
+            return;
+        }
+        builderContainer.innerHTML = `
+            ${renderMetaSection(model.meta || {})}
+            ${renderBlocksSection(model.blocks || [])}
+        `;
+        refreshErrorElements();
+        validateBlocks();
+        applyValidationState();
+    };
+
+    const updateMetaField = (field, value) => {
+        if (!state.builderModel) return;
+        state.builderModel.meta = state.builderModel.meta || {};
+        if (field === 'draft') {
+            state.builderModel.meta.draft = Boolean(value);
+            refreshDirty();
+            return;
+        }
+        if (field === 'weight') {
+            if (value === '' || value === null) {
+                delete state.builderModel.meta.weight;
+            } else {
+                const parsed = Number(value);
+                state.builderModel.meta.weight = Number.isNaN(parsed) ? value : parsed;
+            }
+            refreshDirty();
+            return;
+        }
+        if (value === '' || value === null) {
+            delete state.builderModel.meta[field];
+        } else {
+            state.builderModel.meta[field] = value;
+        }
+        refreshDirty();
+    };
+
+    const coerceValue = (field, value) => {
+        if (field.type === 'checkbox') {
+            return Boolean(value);
+        }
+        if (field.type === 'select' && field.valueType === 'number') {
+            if (value === '' || value === null) return '';
+            const parsed = Number(value);
+            return Number.isNaN(parsed) ? value : parsed;
+        }
+        if (field.type === 'number') {
+            if (value === '' || value === null) return '';
+            const parsed = Number(value);
+            return Number.isNaN(parsed) ? value : parsed;
+        }
+        return value;
+    };
+
+    const updateBlockField = (blockIndex, fieldKey, value, itemIndex, itemFieldKey) => {
+        if (!state.builderModel) return;
+        const blocks = state.builderModel.blocks || [];
+        const block = blocks[blockIndex];
+        if (!block) return;
+        const definition = BLOCK_LIBRARY[block.type];
+        if (!definition) return;
+        if (itemIndex !== null && itemFieldKey) {
+            const itemsField = definition.fields.find((field) => field.key === fieldKey);
+            if (!itemsField) return;
+            const items = Array.isArray(block[fieldKey]) ? block[fieldKey] : [];
+            const item = items[itemIndex] || {};
+            const itemFieldDef = (itemsField.itemFields || []).find((f) => f.key === itemFieldKey);
+            const finalValue = coerceValue(itemFieldDef || {}, value);
+            if (finalValue === '' && !(itemFieldDef && itemFieldDef.required)) {
+                delete item[itemFieldKey];
+            } else {
+                item[itemFieldKey] = finalValue;
+            }
+            items[itemIndex] = item;
+            block[fieldKey] = items;
+        } else {
+            const fieldDef = definition.fields.find((field) => field.key === fieldKey);
+            if (!fieldDef) return;
+            const finalValue = coerceValue(fieldDef, value);
+            if (finalValue === '' && !fieldDef.required) {
+                delete block[fieldKey];
+            } else {
+                block[fieldKey] = finalValue;
+            }
+        }
+        refreshDirty();
+        validateBlocks();
+        applyValidationState();
+    };
+
+    const addBlock = (type) => {
+        if (!state.builderModel) return;
+        const definition = BLOCK_LIBRARY[type];
+        if (!definition) return;
+        const block = cloneBlocks([definition.defaults])[0];
+        assignBlockMetadata([block], false);
+        state.builderModel.blocks = state.builderModel.blocks || [];
+        state.builderModel.blocks.push(block);
+        renderBuilder(state.builderModel);
+        refreshDirty();
+    };
+
+    const removeBlock = (index) => {
+        if (!state.builderModel) return;
+        const block = state.builderModel.blocks[index];
+        if (block && block._locked) return;
+        state.builderModel.blocks.splice(index, 1);
+        renderBuilder(state.builderModel);
+        refreshDirty();
+    };
+
+    const duplicateBlock = (index) => {
+        if (!state.builderModel) return;
+        const blocks = state.builderModel.blocks || [];
+        const block = blocks[index];
+        if (!block || block._locked) return;
+        const copy = cloneBlocks([block])[0];
+        delete copy._id;
+        delete copy._locked;
+        assignBlockMetadata([copy], false);
+        blocks.splice(index + 1, 0, copy);
+        renderBuilder(state.builderModel);
+        refreshDirty();
+    };
+
+    const moveBlock = (index, direction) => {
+        if (!state.builderModel) return;
+        const blocks = state.builderModel.blocks || [];
+        if (blocks[index] && blocks[index]._locked) return;
+        const nextIndex = index + direction;
+        if (nextIndex < 0 || nextIndex >= blocks.length) return;
+        if (blocks[nextIndex] && blocks[nextIndex]._locked) return;
+        const temp = blocks[index];
+        blocks[index] = blocks[nextIndex];
+        blocks[nextIndex] = temp;
+        renderBuilder(state.builderModel);
+        refreshDirty();
+    };
+
+    const addItem = (blockIndex, fieldKey) => {
+        const block = state.builderModel?.blocks?.[blockIndex];
+        const definition = BLOCK_LIBRARY[block?.type];
+        if (!block || !definition) return;
+        const itemsField = definition.fields.find((field) => field.key === fieldKey);
+        if (!itemsField) return;
+        const items = Array.isArray(block[fieldKey]) ? block[fieldKey] : [];
+        const newItem = {};
+        (itemsField.itemFields || []).forEach((field) => {
+            if (field.key === 'label') newItem[field.key] = 'New button';
+            else if (field.key === 'href') newItem[field.key] = '/';
+            else if (field.key === 'title') newItem[field.key] = 'Card title';
+            else if (field.key === 'body') newItem[field.key] = 'Card text.';
+            else newItem[field.key] = '';
+        });
+        items.push(newItem);
+        block[fieldKey] = items;
+        renderBuilder(state.builderModel);
+        refreshDirty();
+    };
+
+    const removeItem = (blockIndex, fieldKey, itemIndex) => {
+        const block = state.builderModel?.blocks?.[blockIndex];
+        if (!block) return;
+        const items = Array.isArray(block[fieldKey]) ? block[fieldKey] : [];
+        items.splice(itemIndex, 1);
+        block[fieldKey] = items;
+        renderBuilder(state.builderModel);
+        refreshDirty();
+    };
+
+    const moveItem = (blockIndex, fieldKey, itemIndex, direction) => {
+        const block = state.builderModel?.blocks?.[blockIndex];
+        if (!block) return;
+        const items = Array.isArray(block[fieldKey]) ? block[fieldKey] : [];
+        const nextIndex = itemIndex + direction;
+        if (nextIndex < 0 || nextIndex >= items.length) return;
+        const temp = items[itemIndex];
+        items[itemIndex] = items[nextIndex];
+        items[nextIndex] = temp;
+        block[fieldKey] = items;
+        renderBuilder(state.builderModel);
+        refreshDirty();
+    };
+
+    const openPreviewWindow = () => {
+        if (state.mode === 'text') {
+            const parsed = buildModelFromText(textarea.value || '', state.currentPath || '');
+            if (parsed.parseError) {
+                setStatus('Preview failed', 'Front matter could not be parsed. Fix it before previewing.');
+                return;
+            }
+            state.builderModel = parsed;
+        }
+        if (!state.builderModel) return;
+        const previewHtml = renderPreviewBlocks(state.builderModel.blocks || []);
+        const win = window.open('', '_blank', 'noopener,noreferrer');
+        if (!win) {
+            setStatus('Preview blocked', 'Allow pop-ups to open preview in a new tab.');
+            return;
+        }
+        win.document.open();
+        win.document.write(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="${PREVIEW_BASE}">
+  <link rel="stylesheet" href="${PREVIEW_CSS_URL}">
+  <title>PDPS Preview</title>
+  <style>
+    body { background: var(--color-light); }
+    .preview-shell { max-width: 980px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+    .preview-header { margin-bottom: 1.5rem; }
+    .preview-header h1 { margin-bottom: 0.2rem; }
+    .preview-header p { color: var(--color-muted); }
+  </style>
+</head>
+<body>
+  <div class="preview-shell">
+    <div class="preview-header">
+      <h1>Preview</h1>
+      <p>Read-only rendering of the current blocks.</p>
+    </div>
+    ${previewHtml || '<p>No blocks to preview.</p>'}
+  </div>
+</body>
+</html>`);
+        win.document.close();
+    };
+
+    const ensureDirectory = async (root, parts) => {
+        let current = root;
+        for (const part of parts) {
+            current = await current.getDirectoryHandle(part, { create: true });
+        }
+        return current;
+    };
+
+    const getDirectoryForPath = async (root, path) => {
+        const segments = path.split('/');
+        segments.pop();
+        let current = root;
+        for (const part of segments) {
+            current = await current.getDirectoryHandle(part, { create: false });
+        }
+        return current;
+    };
+
+    const writeBackup = async () => {
+        if (!state.safeSave || !state.rootHandle || !state.currentPath) return true;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const safeName = state.currentPath.replace(/\//g, '__');
+        try {
+            const backupDir = await ensureDirectory(state.rootHandle, ['data', '_drafts']);
+            const backupHandle = await backupDir.getFileHandle(`${safeName}.${timestamp}.bak`, { create: true });
+            const writable = await backupHandle.createWritable();
+            await writable.write(state.originalText);
+            await writable.close();
+            return true;
+        } catch (error) {
+            try {
+                const dir = await getDirectoryForPath(state.rootHandle, state.currentPath);
+                const baseName = state.currentPath.split('/').pop();
+                const backupHandle = await dir.getFileHandle(`${baseName}.${timestamp}.bak`, { create: true });
+                const writable = await backupHandle.createWritable();
+                await writable.write(state.originalText);
+                await writable.close();
+                return true;
+            } catch (fallbackError) {
+                setStatus('Backup failed', 'Unable to create safe-save backup. Disable Safe save to continue.');
+                return false;
+            }
+        }
+    };
+
+    const loadFile = async (path) => {
+        const handle = state.fileMap.get(path);
+        if (!handle) {
+            setStatus('Missing file', `Could not find ${path}`);
+            return;
+        }
+        const extension = path.split('.').pop().toLowerCase();
+        const nextIsToml = extension === 'toml';
+        if (!nextIsToml && state.tomlEditor) {
+            disableTomlEditor();
+        }
+        const file = await handle.getFile();
+        const text = await file.text();
+        state.fileContentCache.set(path, text.toLowerCase());
+        state.currentPath = path;
+        state.currentHandle = handle;
+        state.originalText = text;
+        textarea.value = text;
+        textarea.scrollTop = 0;
+        textarea.scrollLeft = 0;
+        filePath.textContent = path;
+        setDirty(false);
+        state.canBuilder = false;
+        state.builderModel = null;
+        builderContainer.innerHTML = '';
+        state.isToml = nextIsToml;
+        textarea.wrap = state.isToml ? 'off' : 'soft';
+        if (state.isToml) {
+            const editor = enableTomlEditor();
+            codeContainer.classList.toggle('is-highlight', !editor);
+            codeContainer.classList.toggle('is-toml', true);
+            tomlHighlight.hidden = Boolean(editor);
+            if (editor) {
+                editor.setValue(text);
+                editor.scrollTo(0, 0);
+                editor.refresh();
+            } else {
+                updateTomlHighlight();
+            }
+        } else {
+            disableTomlEditor();
+            codeContainer.classList.toggle('is-highlight', false);
+            codeContainer.classList.toggle('is-toml', false);
+            tomlHighlight.hidden = true;
+        }
+        if (modeContainer) {
+            modeContainer.hidden = state.isToml;
+        }
+        validateToml();
+        if (extension === 'md') {
+            state.canBuilder = true;
+            syncTextToBuilder();
+        }
+        if (state.canBuilder && state.builderModel && !state.builderModel.parseError) {
+            setMode('builder');
+        } else {
+            setMode('text');
+        }
+        if (state.isToml) {
+            state.canBuilder = false;
+            setMode('text');
+        }
+        paneText.scrollTop = 0;
+        paneBuilder.scrollTop = 0;
+        builderContainer.scrollTop = 0;
+        updateControls();
+        idbSet(STORE_STATE, 'lastPath', path);
+    };
+
+    const saveFile = async () => {
+        if (!state.currentHandle) return;
+        const extension = state.currentPath ? state.currentPath.split('.').pop().toLowerCase() : '';
+        if (extension === 'md') {
+            if (state.mode === 'builder') {
+                if (state.builderModel && hasBodyContent(state.builderModel.body)) {
+                    setStatus('Body blocked', 'Remove page body content in Text mode and use blocks instead.');
+                    return;
+                }
+                if (!validateBlocks()) {
+                    applyValidationState();
+                    setStatus('Validation failed', 'Fix builder errors before saving.');
+                    return;
+                }
+                syncBuilderToText();
+            } else {
+                const parsed = buildModelFromText(textarea.value || '', state.currentPath);
+                if (parsed.parseError) {
+                    setStatus('Validation failed', 'Front matter could not be parsed. Fix it before saving.');
+                    return;
+                }
+                if (hasBodyContent(parsed.body || '')) {
+                    setStatus('Body blocked', 'Remove page body content and use blocks instead.');
+                    return;
+                }
+                state.builderModel = parsed;
+                if (!validateBlocks(parsed.blocks)) {
+                    setStatus('Validation failed', 'Blocks are invalid. Open Builder to review field errors.');
+                    return;
+                }
+            }
+        } else if (extension === 'toml') {
+            if (state.tomlEditor) {
+                textarea.value = state.tomlEditor.getValue();
+            }
+            const tomlCheck = validateToml();
+            if (!tomlCheck.valid) {
+                setStatus('Validation failed', 'Fix TOML syntax errors before saving.');
+                return;
+            }
+        }
+        const backupOk = await writeBackup();
+        if (!backupOk) return;
+        const writable = await state.currentHandle.createWritable();
+        await writable.write(textarea.value);
+        await writable.close();
+        state.originalText = textarea.value;
+        if (state.currentPath) {
+            state.fileContentCache.set(state.currentPath, textarea.value.toLowerCase());
+        }
+        setDirty(false);
+        setStatus('Saved', `${state.currentPath} updated`);
+    };
+
+    const reloadFile = async () => {
+        if (!state.currentHandle) return;
+        await loadFile(state.currentPath);
+        setStatus('Reloaded', `${state.currentPath} refreshed`);
+    };
+
+    const openDirectory = async (handle) => {
+        state.rootHandle = handle;
+        state.fileMap.clear();
+        state.fileContentCache.clear();
+        await walkDir(handle);
+        renderGroups();
+        setStatus('Folder ready', 'Select a file to start editing.');
+        updateControls();
+        await idbSet(STORE_HANDLES, 'root', handle);
+    };
+
+    const requestAndOpen = async (handle) => {
+        const permission = await handle.requestPermission({ mode: 'readwrite' });
+        if (permission !== 'granted') {
+            setStatus('Permission denied', 'Allow read/write to edit files.');
+            return false;
+        }
+        await openDirectory(handle);
+        state.reconnectHandle = null;
+        return true;
+    };
+
+    const walkDir = async (handle, prefix = '') => {
+        for await (const [name, child] of handle.entries()) {
+            if (name.startsWith('.')) continue;
+            const path = prefix ? `${prefix}/${name}` : name;
+            if (child.kind === 'directory') {
+                await walkDir(child, path);
+            } else {
+                state.fileMap.set(path, child);
+            }
+        }
+    };
+
+    const resolveFiles = (patterns) => {
+        const files = [];
+        const seen = new Set();
+        const sortedPaths = Array.from(state.fileMap.keys()).sort();
+        patterns.forEach((pattern) => {
+            if (pattern.endsWith('/')) {
+                const prefix = pattern;
+                sortedPaths.forEach((path) => {
+                    if (path.startsWith(prefix) && !seen.has(path)) {
+                        files.push(path);
+                        seen.add(path);
+                    }
+                });
+                return;
+            }
+            if (pattern.includes('*')) {
+                const [prefix] = pattern.split('*');
+                sortedPaths.forEach((path) => {
+                    if (path.startsWith(prefix) && !seen.has(path)) {
+                        files.push(path);
+                        seen.add(path);
+                    }
+                });
+                return;
+            }
+            if (state.fileMap.has(pattern) && !seen.has(pattern)) {
+                files.push(pattern);
+                seen.add(pattern);
+            }
+        });
+        return files;
+    };
+
+    const renderGroups = () => {
+        fileGroups.innerHTML = '';
+
+        const buildGroup = (title, fileList) => {
+            const group = document.createElement('details');
+            group.className = 'editor-group';
+            group.open = true;
+            const summary = document.createElement('summary');
+            summary.textContent = title;
+            group.appendChild(summary);
+            const list = document.createElement('div');
+            list.className = 'editor-file-list';
+            fileList.forEach((path) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'editor-file';
+                button.textContent = path;
+                button.dataset.path = path;
+                button.addEventListener('click', () => loadFile(path));
+                list.appendChild(button);
+            });
+            if (fileList.length === 0) {
+                const empty = document.createElement('p');
+                empty.className = 'editor-empty';
+                empty.textContent = 'No files found.';
+                list.appendChild(empty);
+            }
+            group.appendChild(list);
+            fileGroups.appendChild(group);
+        };
+
+        QUICK_GROUPS.forEach((group) => {
+            buildGroup(group.name, resolveFiles(group.files));
+        });
+
+        const contentFiles = Array.from(state.fileMap.keys())
+            .filter((path) => path.startsWith('content/') && path.endsWith('.md'))
+            .sort();
+        const dataFiles = Array.from(state.fileMap.keys())
+            .filter((path) => path.startsWith('data/') && path.endsWith('.toml'))
+            .sort();
+        buildGroup('All content files', contentFiles);
+        buildGroup('All data files', dataFiles);
+    };
+
+    const isSearchablePath = (path) => {
+        const name = path.split('/').pop() || '';
+        if (!name) return false;
+        const lower = name.toLowerCase();
+        if (!lower.includes('.')) return true;
+        const ext = lower.split('.').pop();
+        return SEARCHABLE_EXTENSIONS.has(ext);
+    };
+
+    const getFileContentLower = async (path) => {
+        if (state.fileContentCache.has(path)) {
+            return state.fileContentCache.get(path);
+        }
+        const handle = state.fileMap.get(path);
+        if (!handle) return '';
+        try {
+            const file = await handle.getFile();
+            if (file.size > MAX_SEARCH_FILE_SIZE) {
+                state.fileContentCache.set(path, '');
+                return '';
+            }
+            const text = await file.text();
+            const lower = text.toLowerCase();
+            state.fileContentCache.set(path, lower);
+            return lower;
+        } catch (error) {
+            return '';
+        }
+    };
+
+    const applySearchMatches = (matchSet, term) => {
+        document.querySelectorAll('.editor-file').forEach((button) => {
+            const path = button.dataset.path;
+            if (!term) {
+                button.style.display = 'flex';
+                return;
+            }
+            const matches = matchSet.has(path);
+            button.style.display = matches ? 'flex' : 'none';
+        });
+    };
+
+    const searchFiles = async (value) => {
+        const term = value.trim().toLowerCase();
+        if (!term) {
+            applySearchMatches(new Set(), '');
+            return;
+        }
+        const token = ++state.searchToken;
+        const matches = new Set();
+        const paths = Array.from(state.fileMap.keys());
+        for (const path of paths) {
+            if (token !== state.searchToken) return;
+            const lowerPath = path.toLowerCase();
+            if (lowerPath.includes(term)) {
+                matches.add(path);
+                continue;
+            }
+            if (!isSearchablePath(path)) continue;
+            const contentLower = await getFileContentLower(path);
+            if (contentLower && contentLower.includes(term)) {
+                matches.add(path);
+            }
+        }
+        if (token !== state.searchToken) return;
+        applySearchMatches(matches, term);
+    };
+
+    let searchTimer = null;
+    const scheduleSearch = (value) => {
+        if (searchTimer) window.clearTimeout(searchTimer);
+        searchTimer = window.setTimeout(() => {
+            searchFiles(value);
+        }, SEARCH_DEBOUNCE_MS);
+    };
+
+    openButton.addEventListener('click', async () => {
+        try {
+            if (state.reconnectHandle) {
+                await requestAndOpen(state.reconnectHandle);
+                return;
+            }
+            const stored = await idbGet(STORE_HANDLES, 'root');
+            if (stored) {
+                const permission = await stored.requestPermission({ mode: 'readwrite' });
+                if (permission === 'granted') {
+                    await openDirectory(stored);
+                    return;
+                }
+            }
+            const handle = await window.showDirectoryPicker();
+            await requestAndOpen(handle);
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                setStatus('Error', 'Unable to open folder.');
+            }
+        }
+    });
+
+    textarea.addEventListener('input', () => {
+        if (!state.currentHandle) return;
+        if (state.isToml && state.tomlEditor) return;
+        setDirty(textarea.value !== state.originalText);
+        if (state.isToml) {
+            updateTomlHighlight();
+            validateToml();
+        }
+    });
+
+    textarea.addEventListener('scroll', syncTomlScroll);
+
+    saveButton.addEventListener('click', saveFile);
+    reloadButton.addEventListener('click', reloadFile);
+    fileSearch.addEventListener('input', (event) => scheduleSearch(event.target.value));
+    modeTextButton.addEventListener('click', () => {
+        if (state.mode === 'text') return;
+        syncBuilderToText();
+        setMode('text');
+        refreshDirty();
+    });
+    modeBuilderButton.addEventListener('click', () => {
+        if (!state.canBuilder || state.mode === 'builder') return;
+        syncTextToBuilder();
+        if (state.builderModel && !state.builderModel.parseError) {
+            setMode('builder');
+            refreshDirty();
+        }
+    });
+
+    const handleBuilderInput = (event) => {
+        const target = event.target;
+        if (!target) return;
+        if (target.dataset.metaField) {
+            const value = target.type === 'checkbox' ? target.checked : target.value;
+            updateMetaField(target.dataset.metaField, value);
+            return;
+        }
+        if (target.dataset.blockIndex && target.dataset.itemIndex && target.dataset.itemField) {
+            const blockIndex = Number(target.dataset.blockIndex);
+            const itemIndex = Number(target.dataset.itemIndex);
+            const value = target.type === 'checkbox' ? target.checked : target.value;
+            updateBlockField(blockIndex, target.dataset.field, value, itemIndex, target.dataset.itemField);
+            return;
+        }
+        if (target.dataset.blockIndex && target.dataset.field) {
+            const blockIndex = Number(target.dataset.blockIndex);
+            const value = target.type === 'checkbox' ? target.checked : target.value;
+            updateBlockField(blockIndex, target.dataset.field, value, null, null);
+            return;
+        }
+    };
+
+    builderContainer.addEventListener('input', handleBuilderInput);
+    builderContainer.addEventListener('change', handleBuilderInput);
+
+    builderContainer.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!target) return;
+        const action = target.dataset.action;
+        if (!action) return;
+        if (action === 'add-block') {
+            const select = builderContainer.querySelector('#block-type-select');
+            if (select) addBlock(select.value);
+            return;
+        }
+        if (action === 'open-preview') {
+            openPreviewWindow();
+            return;
+        }
+        if (action === 'remove-block') {
+            removeBlock(Number(target.dataset.blockIndex));
+            return;
+        }
+        if (action === 'move-block-up') {
+            moveBlock(Number(target.dataset.blockIndex), -1);
+            return;
+        }
+        if (action === 'move-block-down') {
+            moveBlock(Number(target.dataset.blockIndex), 1);
+            return;
+        }
+        if (action === 'duplicate-block') {
+            duplicateBlock(Number(target.dataset.blockIndex));
+            return;
+        }
+        if (action === 'add-item') {
+            addItem(Number(target.dataset.blockIndex), target.dataset.field);
+            return;
+        }
+        if (action === 'remove-item') {
+            removeItem(Number(target.dataset.blockIndex), target.dataset.field, Number(target.dataset.itemIndex));
+            return;
+        }
+        if (action === 'move-item-up') {
+            moveItem(Number(target.dataset.blockIndex), target.dataset.field, Number(target.dataset.itemIndex), -1);
+            return;
+        }
+        if (action === 'move-item-down') {
+            moveItem(Number(target.dataset.blockIndex), target.dataset.field, Number(target.dataset.itemIndex), 1);
+            return;
+        }
+    });
+
+    safeSaveToggle.addEventListener('change', (event) => {
+        state.safeSave = Boolean(event.target.checked);
+        idbSet(STORE_STATE, 'safeSave', state.safeSave);
+    });
+
+    window.addEventListener('keydown', (event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+            if (state.currentHandle) {
+                event.preventDefault();
+                saveFile();
+            }
+        }
+    });
+
+    if (!['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+        setStatus('Local use only', 'This editor is intended for local development.');
+    }
+
+    const restoreSession = async () => {
+        if (!supportsFs || !STORAGE_SUPPORTED) return;
+        try {
+            const storedHandle = await idbGet(STORE_HANDLES, 'root');
+            const storedSafeSave = await idbGet(STORE_STATE, 'safeSave');
+            const lastPath = await idbGet(STORE_STATE, 'lastPath');
+            if (typeof storedSafeSave === 'boolean') {
+                state.safeSave = storedSafeSave;
+                safeSaveToggle.checked = storedSafeSave;
+            }
+            if (storedHandle) {
+                const permission = await storedHandle.queryPermission({ mode: 'readwrite' });
+                if (permission === 'granted') {
+                    await openDirectory(storedHandle);
+                    if (lastPath) {
+                        await loadFile(lastPath);
+                    }
+                    state.reconnectHandle = null;
+                    state.pendingRestore = false;
+                } else if (permission === 'prompt') {
+                    state.reconnectHandle = storedHandle;
+                    state.pendingRestore = true;
+                    setStatus('Reconnect folder', 'Click anywhere to restore access.');
+                    window.addEventListener('pointerdown', attemptRestore, { once: true });
+                } else {
+                    state.reconnectHandle = storedHandle;
+                    setStatus('Reconnect folder', 'Click “Open site folder” to restore access.');
+                }
+            }
+        } catch (error) {
+            console.warn('Editor restore failed', error);
+        }
+    };
+
+    const attemptRestore = async () => {
+        if (!state.reconnectHandle || !state.pendingRestore) return;
+        state.pendingRestore = false;
+        try {
+            const permission = await state.reconnectHandle.requestPermission({ mode: 'readwrite' });
+            if (permission === 'granted') {
+                await openDirectory(state.reconnectHandle);
+                state.reconnectHandle = null;
+                const lastPath = await idbGet(STORE_STATE, 'lastPath');
+                if (lastPath) {
+                    await loadFile(lastPath);
+                }
+                setStatus('Folder restored', 'Previous folder access restored.');
+            } else {
+                setStatus('Reconnect folder', 'Click “Open site folder” to restore access.');
+            }
+        } catch (error) {
+            console.warn('Editor restore failed', error);
+        }
+    };
+
+    state.validator = initValidator();
+    updateControls();
+    restoreSession();
+})();
+</script>
+{% endblock main %}

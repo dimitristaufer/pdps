@@ -1,0 +1,27 @@
+<footer class="site-footer">
+    <div class="container footer-grid">
+        <div class="footer-brand">
+            <h3>{{ config.extra.site_short }}</h3>
+            <p>{{ config.description }}</p>
+            {% if config.extra.footer.link_url and config.extra.footer.link_label %}
+                <p class="small">
+                    {{ config.extra.footer.text }}
+                    <a href="{{ config.extra.footer.link_url }}" target="_blank" rel="noopener">{{ config.extra.footer.link_label }}</a>{{ config.extra.footer.suffix | default(value = "") }}
+                </p>
+            {% else %}
+                <p class="small">{{ config.extra.footer.text }}</p>
+            {% endif %}
+        </div>
+        <div class="footer-links">
+            <p class="eyebrow">Navigate</p>
+            {% for item in config.extra.nav %}
+                <a href="{{ get_url(path = item.url) | safe }}">{{ item.name }}</a>
+            {% endfor %}
+        </div>
+        <div class="footer-links">
+            <p class="eyebrow">Policies</p>
+            <a href="{{ get_url(path = '/policies/privacy/') }}">Privacy</a>
+            <a href="{{ get_url(path = '/policies/accessibility/') }}">Accessibility</a>
+        </div>
+    </div>
+</footer>

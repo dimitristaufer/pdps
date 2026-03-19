@@ -1,0 +1,13 @@
++++
+title = "Accessibility"
+description = "Accessibility commitments for in-person and online participation."
+
+extra.blocks = [
+  { type = "section_heading", text = "Access goals" },
+  { type = "paragraph", text = "We aim to make PDPS editions accessible for participants with different needs. Organisers review accessibility requirements for each venue and provide information in the programme." },
+  { type = "section_heading", text = "Hybrid participation" },
+  { type = "paragraph", text = "When hybrid participation is available, we provide online access details to registered participants. Sessions are structured to include questions from both in-person and online attendees." },
+  { type = "section_heading", text = "Requests" },
+  { type = "paragraph", text = "If you have accessibility requirements, include them when registering or when submitting a talk proposal so the organising team can plan accordingly." }
+]
++++

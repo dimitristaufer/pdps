@@ -1,0 +1,37 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@300;400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap");
+
+$container-width: 1180px !default;
+$container-padding: 20px !default;
+$responsive-cutoff: 920px !default;
+
+$h1-font-size: 3.1rem !default;
+$h2-font-size: 2.2rem !default;
+$h3-font-size: 1.7rem !default;
+$h4-font-size: 1.3rem !default;
+$h5-font-size: 1.1rem !default;
+$h6-font-size: 1rem !default;
+
+$color-text: #1b1b1f !default;
+$color-primary: #0f766e !default;
+$color-light: #f5f1ea !default;
+$color-white: #ffffff !default;
+$color-black: #0c0f10 !default;
+
+$color-text-dark: #f1ebe3 !default;
+$color-primary-dark: #2f8f85 !default;
+$color-light-dark: #0f1416 !default;
+$color-white-dark: #f8f4ed !default;
+$color-black-dark: #0b0f10 !default;
+
+$color-link-hover: darken !default;
+
+@import "_reset.scss";
+@import "_color.scss";
+@import "_layout.scss";
+@import "_nav.scss";
+@import "_buttons.scss";
+@import "_table.scss";
+@import "_utils.scss";
+@import "_grid.scss";
+@import "_responsive.scss";
+@import "_main.scss";

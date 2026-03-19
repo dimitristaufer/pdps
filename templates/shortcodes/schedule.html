@@ -1,0 +1,24 @@
+{% set input = load_data(path = data) %}
+{% set blocks = input.blocks | default(value = []) %}
+<div class="schedule">
+    <table>
+        <tbody>
+            {% for block in blocks %}
+                <tr class="schedule-block">
+                    <td colspan="2">{{ block.title }}</td>
+                </tr>
+                {% for session in block.sessions %}
+                    <tr class="schedule-row{% if session.type %} schedule-{{ session.type }}{% endif %}">
+                        <td class="schedule-time">{{ session.time }}</td>
+                        <td class="schedule-details">
+                            <span class="schedule-title">{{ session.title }}</span>
+                            {% if session.speaker %}
+                                <span class="schedule-speaker">{{ session.speaker }}{% if session.affiliation %} · {{ session.affiliation }}{% endif %}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

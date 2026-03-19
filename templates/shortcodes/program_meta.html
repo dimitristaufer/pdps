@@ -1,0 +1,11 @@
+{% set input = load_data(path = data) %}
+<div class="program-meta">
+    <p><strong>Location:</strong> {{ input.location }}</p>
+    {% if input.program_pdf %}
+        <div class="text-center">
+            <a class="btn mt-3" href="{{ get_url(path = input.program_pdf) | safe }}" target="_blank" rel="noopener">
+                Download programme PDF
+            </a>
+        </div>
+    {% endif %}
+</div>
