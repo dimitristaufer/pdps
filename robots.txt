@@ -1,0 +1,4 @@
+User-agent: *
+Disallow:
+Allow: /
+Sitemap: https://dimitristaufer.github.io/pdps/sitemap.xml
